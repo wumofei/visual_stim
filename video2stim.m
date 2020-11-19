@@ -133,11 +133,8 @@ input_dim = [size(input_video,2) size(input_video,1)]; % x,y
 nFrames = size(input_video,3);
 clearvars input_timeframe input_videoobj
 
-%% Normalize input video to full range [0,1].
-input_video_min = min(input_video,[],'all');
-input_video_max = max(input_video,[],'all');
-input_video = (input_video - input_video_min) / (input_video_max - input_video_min);
-clearvars input_video_min input_video_max
+%% Normalize input video to range [0,1].
+input_video = mat2gray(input_video);
 
 %% Apply high-pass filter.
 kernel = kernel_factor * ...
