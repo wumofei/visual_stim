@@ -1,3 +1,5 @@
+function video2stim(input_filename, input_dist, input_focal_length, input_sensor_size, varargin)
+
 %{
 Convert input video to Wei lab rig OLED display stimulus. Match size of
 depicted scene to size of target retina and optimal viewing distance.
@@ -48,8 +50,6 @@ convolution kernel:
 Scaled video, convolved scaled video, and downsampled video. Written to
 8-bit grayscale .avi files for each viewing distance given.
 %}
-
-function video2stim(input_filename, input_dist, input_focal_length, input_sensor_size, varargin)
 
 %% Check inputs.
 p = inputParser;
@@ -127,7 +127,6 @@ end
 
 
 % Extract frames from video object.
-% input_videoobj.CurrentTime = (input_timeframe - 1) / input_videoobj.Framerate;
 input_video = im2double(squeeze(read(input_videoobj, input_timeframe)));
 input_dim = [size(input_video,2) size(input_video,1)]; % x,y
 nFrames = size(input_video,3);
@@ -144,7 +143,7 @@ kernel = kernel_factor * ...
 input_video_filtered = zeros(input_dim(2),input_dim(1),nFrames);
 
 for i = 1:nFrames
-    input_video_filtered(:,:,i) = imfilter(input_video(:,:,i), kernel, 'conv');
+    input_video_filtered(:,:,i) = conv2(input_video(:,:,i), kernel, 'same');
 end
 input_video_filtered = max(0,min(input_video_filtered,1));
 clearvars i kernel kernel_factor
@@ -158,8 +157,7 @@ input_landscape_size = input_sensor_size / input_focal_length * input_dist; % x,
 input_landscape_per_pixel = input_landscape_size ./ input_dim; % x,y
 
 % Find pixel dimensions to crop input video.
-crop_dim = output_landscape_size ./ input_landscape_per_pixel; % x,y. Non-integer.
-crop_dim = round(crop_dim);
+crop_dim = round(output_landscape_size ./ input_landscape_per_pixel); % x,y.
 clearvars output_landscape_size input_landscape_size input_landscape_per_pixel output_retina_size angle2retina_dist input_sensor_size input_focal_length input_dist
 
 % Check if desired crop dimensions are larger than input video dimensions.
@@ -226,11 +224,7 @@ cropped_video_filtered = cropped_video;
 for i = 1:nOutputs
     cropped_video(1:crop_dim(i,2),1:crop_dim(i,1),:,i) = input_video(topleft_coord(2):(topleft_coord(2)+crop_dim(i,2)-1), topleft_coord(1):(topleft_coord(1)+crop_dim(i,1)-1), :);
     cropped_video_filtered(1:crop_dim(i,2),1:crop_dim(i,1),:,i) = input_video_filtered(topleft_coord(2):(topleft_coord(2)+crop_dim(i,2)-1), topleft_coord(1):(topleft_coord(1)+crop_dim(i,1)-1), :);
-%     for j = 1:nFrames
-%         cropped_video_filtered_normalized(:,:,j,i) = histeq(cropped_video_filtered(:,:,j,i), imhist(cropped_video(:,:,j,i)));
-%     end
 end
-input_mean_pxvalue = mean2(input_video);
 clearvars topleft_coord input_video input_video_filtered
 
 %% Scale cropped video to obtain pixel dimensions of output display/monitor.
@@ -239,10 +233,11 @@ scaled_video_filtered = scaled_video;
 for i = 1:nOutputs
     scaled_video(:,:,:,i) = imresize(cropped_video(1:crop_dim(i,2), 1:crop_dim(i,1),:,i), [output_dim(2) output_dim(1)]);
     scaled_video_filtered(:,:,:,i) = imresize(cropped_video_filtered(1:crop_dim(i,2), 1:crop_dim(i,1),:,i), [output_dim(2) output_dim(1)]);
-%     scaled_video_filtered_normalized(:,:,:,i) = imresize(cropped_video_filtered_normalized(1:crop_dim(i,2), 1:crop_dim(i,1),:,i), [output_dim(2) output_dim(1)]);
 end
 scaled_video = max(0,min(scaled_video,1));
 scaled_video_filtered = max(0,min(scaled_video_filtered,1));
+scaled_video = mat2gray(scaled_video);
+scaled_video_filtered = mat2gray(scaled_video_filtered);
 clearvars crop_dim nFrames cropped_video_filtered
 
 % Write output videos.
@@ -258,17 +253,12 @@ for i = 1:nOutputs
     open(output_file);
     writeVideo(output_file, scaled_video_filtered(:,:,:,i));
     close(output_file);
-    
-%     output_file = VideoWriter([output_directory '/' filename '_out_scaled_filtered_normalized_viewingdistance' num2str(output_viewing_distance(i)*10^2,2) 'cm.avi'], 'Grayscale AVI');
-%     output_file.FrameRate = input_fps;
-%     open(output_file);
-%     writeVideo(output_file, scaled_video_filtered_normalized(:,:,:,i));
-%     close(output_file);
 end
 
 %% Down-sample to obtain desired (reduced) output resolution.
 downsampled_video = imresize(cropped_video, [output_dim(2)/output_resolution output_dim(1)/output_resolution]);
 output_video = repelem(downsampled_video, output_resolution, output_resolution);
+output_video = mat2gray(output_video);
 clearvars output_dim cropped_video downsampled_video output_resolution scaled_video scaled_video_filtered
 
 %% Write output video to .avi file.
