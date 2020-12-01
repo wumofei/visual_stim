@@ -12,37 +12,43 @@ parse(p, movie_filename, varargin{:});
 screenNumber = p.Results.screenNumber;
 clearvars p v
 
-%% Prepare display.
+%% Configure Psychtoolbox.
 PsychDefaultSetup(2);
 KbReleaseWait;
 
-if nargin < 2 || isempty(screenNumber)
+if isempty(screenNumber)
     screenNumber = max(Screen('Screens'));
 end
 
+black = BlackIndex(screenNumber);
+
+%% Display movie.
 try
-    window = PsychImaging('OpenWindow', screenNumber, 0);
+    Screen('Preference', 'SkipSyncTests', 0);
+    oldVerbosityLevel = Screen('Preference', 'Verbosity', 0);
+    oldVisualDebugLevel = Screen('Preference', 'VisualDebugLevel', 1);
+    window = PsychImaging('OpenWindow', screenNumber, black);
     movie = Screen('OpenMovie', window, movie_filename);
     topPriorityLevel = MaxPriority(window);
     HideCursor(window);
-
-    %% Display movie.
     Priority(topPriorityLevel);
     Screen('PlayMovie', movie, 1);
 
     while ~KbCheck
-       tex = Screen('GetMovieImage', window, movie);
-      if tex<=0
-          break;
-      end
+        tex = Screen('GetMovieImage', window, movie);
+        if tex<=0
+            break;
+        end
     
-      Screen('DrawTexture', window, tex);
+        Screen('DrawTexture', window, tex);
         Screen('Flip', window);
         Screen('Close', tex);
     end
 
     Screen('PlayMovie', movie, 0);
     Screen('CloseMovie', movie);
+    Screen('Preference', 'Verbosity', oldVerbosityLevel);
+    Screen('Preference', 'VisualDebugLevel', oldVisualDebugLevel);
     Priority(0);
     sca;
 catch
