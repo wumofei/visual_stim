@@ -139,6 +139,7 @@ try
     for i = 1:nTrials
         direction = directions(i);
         dist_center2bar = dist_center2bar_init(i);
+        Beeper('high');
         time0 = Screen('Flip', window);
         currentTime = time0;
         tic;
@@ -164,6 +165,7 @@ try
     Screen('Preference', 'Verbosity', oldVerbosityLevel);
     Screen('Preference', 'VisualDebugLevel', oldVisualDebugLevel);
     Priority(0);
+    Beeper('medium');
     sca;
 catch
     sca;
