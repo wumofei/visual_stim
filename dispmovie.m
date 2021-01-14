@@ -56,7 +56,7 @@ try
     oldVisualDebugLevel = Screen('Preference', 'VisualDebugLevel', 1);
     
     %% Open and configure window.
-    [window, windowRect] = PsychImaging('OpenWindow', screenNumber, black);
+    window = PsychImaging('OpenWindow', screenNumber, black);
     [screenXpx, screenYpx] = Screen('WindowSize', window);
     screen_ifi = Screen('GetFlipInterval',window);
     topPriorityLevel = MaxPriority(window);
@@ -90,6 +90,9 @@ try
         Screen('DrawTexture', window, frametex(i));
         vbl = Screen('Flip', window, vbl + 0.75*video_ifi);
         Screen('Close', frametex(i));
+        if KbCheck
+            break
+        end
     end
     toc
 

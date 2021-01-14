@@ -1,4 +1,4 @@
-function dispmovie(varargin)
+function dispmovie_movingbar(varargin)
 
 %% Check inputs.
 if nargin == 0
@@ -12,13 +12,14 @@ addParameter(p, 'video_filename', [],  @(x) v(x,{'char'},{'nonempty'},mfilename,
 addParameter(p, 'videomat', [], @(x) v(x,{'numeric'},{'nonempty','nonnan','nonnegative'},mfilename,'videomat'));
 addParameter(p, 'video_fps', [], @(x) v(x,{'numeric'},{'scalar','nonnegative'},mfilename,'video_fps'));
 addParameter(p, 'screenNumber', [], @(x) v(x,{'numeric'},{'scalar','integer','nonnegative'},mfilename,'screenNumber'));
-addParameter(p, 'movingbar', 0, @(x) v(x,{'numeric'},{'scalar','binary'},mfilename,'movingbar'));
 addParameter(p, 'nReps', 1, @(x) v(x,{'numeric'},{'scalar','positive','integer'},mfilename,'nReps'));
-addParameter(p, 'nDirections', 4, @(x) v(x,{'numeric'},{'scalar','positive','integer'},mfilename,'nDirections'));
+addParameter(p, 'nDirs', 4, @(x) v(x,{'numeric'},{'scalar','positive','integer'},mfilename,'nDirections'));
 addParameter(p, 'bar_width', 100, @(x) v(x,{'numeric'},{'scalar','positive'},mfilename,'bar_width'));
 addParameter(p, 'bar_length', 800, @(x) v(x,{'numeric'},{'scalar','positive'},mfilename,'bar_length'));
 addParameter(p, 'bar_speed', 300, @(x) v(x,{'numeric'},{'scalar','positive'},mfilename,'bar_speed'));
 addParameter(p, 'bar_color', 1, @(x) v(x,{'numeric'},{'2d','>=',0,'<=',1},mfilename,'bar_color'));
+addParameter(p, 'barDispBuffer', 10, @(x) v(x,{'numeric'},{'scalar','nonnegative'},mfilename,'barDispBuffer'));
+addParameter(p, 'multisample', 4, @(x) v(x,{'numeric'},{'scalar','nonnegative','integer'},mfilename,'multisample'));
 
 parse(p, varargin{:});
 
@@ -26,13 +27,14 @@ video_filename = p.Results.video_filename;
 videomat = p.Results.videomat;
 video_fps = p.Results.video_fps;
 screenNumber = p.Results.screenNumber;
-movingbar = p.Results.movingbar;
 nReps = p.Results.nReps;
-nDirections = p.Results.nDirections;
+nDirs = p.Results.nDirs;
 bar_width = p.Results.bar_width;
 bar_length = p.Results.bar_length;
 bar_speed = p.Results.bar_speed;
 bar_color = p.Results.bar_color;
+barDispBuffer = p.Results.barDispBuffer;
+multisample = p.Results.multisample;
 
 clearvars varargin p v
 
@@ -54,19 +56,6 @@ end
 videodim = size(videomat);
 video_ifi = 1 / video_fps;
 
-%% Optionally, create moving bar matrix.
-if movingbar
-    directions = repmat(0:(360/nDirections):(360-(360/nDirections)),nReps,1);
-    for iRep = 1:nReps
-        directions(iRep,:) = directions(iRep,randperm(nDirections));
-    end
-    disp(directions);
-    
-    barmat = ones(bar_width,bar_length+2,2);
-    barmat(:,:,1) = barmat(:,:,1) * bar_color;
-    barmat(:,2:end-1,2) = 0;
-end
-
 %% Initiate Psychtoolbox.
 PsychDefaultSetup(2);
 KbReleaseWait;
@@ -84,8 +73,9 @@ try
     oldVisualDebugLevel = Screen('Preference', 'VisualDebugLevel', 1);
     
     %% Open and configure window.
-    [window, windowRect] = PsychImaging('OpenWindow', screenNumber, black);
+    [window, windowRect] = PsychImaging('OpenWindow', screenNumber, black, [], [], [], [], multisample);
     [screenXpx, screenYpx] = Screen('WindowSize', window);
+    [xcenter, ycenter] = RectCenter(windowRect);
     screen_ifi = Screen('GetFlipInterval',window);
     topPriorityLevel = MaxPriority(window);
     Screen('BlendFunction', window, 'GL_SRC_ALPHA', 'GL_ONE_MINUS_SRC_ALPHA');
@@ -105,25 +95,70 @@ try
     end
     clearvars videomat
     
-    if movingbar
-        bartex = Screen('MakeTexture', window, barmat);
-    end
+    %% Prepare moving bar texture.
+    directions = repmat(0:(360/nDirs):(360-(360/nDirs)),nReps,1);
+%     for i = 1:nReps
+%         directions(i,:) = directions(i,randperm(nDirs));
+%     end
+    disp('Directions: ');
+    disp(directions);
+    directions = directions(:);
+    nTrials = length(directions);
+   
+    barmat = ones(bar_width+2,bar_length+2,2);
+    barmat(:,:,1) = barmat(:,:,1) * bar_color;
+    barmat([1 end],[1 end],2) = 0;
+    bartex = Screen('MakeTexture', window, barmat);
+    barDestRect = [0 0 bar_length+2 bar_width];
+    clearvars barmat
     
-    %% Show movie.
+    %% Calculate bar initial position(s).
+    videoRect_cornerAngle = atand(videodim(1)/videodim(2));
+    dist_center2bar_init = NaN(nTrials,1);
+    
+    % Try to remove for loop?
+    for i = 1:nTrials
+        direction = directions(i);
+        if direction <= videoRect_cornerAngle || direction >= 360-videoRect_cornerAngle || (direction >= 180-videoRect_cornerAngle && direction <= 180+videoRect_cornerAngle)
+            dist_center2bar_init(i) = videodim(2)/2/abs(cosd(direction)) + bar_length/2 + min([bar_width/2,videodim(1)/2,videodim(2)/2]).*abs(tand(direction));
+        else
+            dist_center2bar_init(i) = videodim(1)/2/abs(sind(direction)) + bar_length/2;
+            if direction ~= 90 && direction ~= 270
+                dist_center2bar_init(i) = dist_center2bar_init(i) + min([bar_width/2,videodim(1)/2,videodim(2)/2])./abs(tand(direction));
+            end
+        end
+    end
+    dist_center2bar_init = dist_center2bar_init + barDispBuffer;
+    
+    %% Show stimulus.
     % Configure window to prepare to show movie.
     HideCursor(window);
     KbReleaseWait;
     Priority(topPriorityLevel);
-    vbl = Screen('Flip', window);
     
-    % Display movie.
-    tic;
-    for i = 1:videodim(end)
-        Screen('DrawTexture', window, frametex(i));
-        vbl = Screen('Flip', window, vbl + 0.75*video_ifi);
-        Screen('Close', frametex(i));
+    for i = 1:nTrials
+        direction = directions(i);
+        dist_center2bar = dist_center2bar_init(i);
+        time0 = Screen('Flip', window);
+        currentTime = time0;
+        tic;
+        while ~KbCheck && dist_center2bar >= -dist_center2bar_init(i)
+            bar_pos = [xcenter+dist_center2bar*cosd(direction) ycenter-dist_center2bar*sind(direction)];
+            frame2display = mod(round((currentTime-time0+screen_ifi)/video_ifi),videodim(end));
+            barDestRect = CenterRectOnPoint(barDestRect, bar_pos(1), bar_pos(2));
+            
+            Screen('DrawTexture', window, frametex(frame2display));
+            Screen('DrawTexture', window, bartex, [], barDestRect, -direction);
+            currentTime = Screen('Flip', window, currentTime + 0.6*screen_ifi);
+            
+            dist_center2bar = dist_center2bar - bar_speed * screen_ifi;
+        end
+        toc
+        Screen('FillRect', window, black);
+        Screen('Flip', window);
+        WaitSecs(1);
     end
-    toc
+    Screen('Close');
 
     %% Restore original Psychtoolbox settings and close screen.
     Screen('Preference', 'Verbosity', oldVerbosityLevel);
