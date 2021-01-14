@@ -14,6 +14,8 @@ addParameter(p, 'video_fps', [], @(x) v(x,{'numeric'},{'scalar','nonnegative'},m
 addParameter(p, 'screenNumber', [], @(x) v(x,{'numeric'},{'scalar','integer','nonnegative'},mfilename,'screenNumber'));
 addParameter(p, 'nReps', 1, @(x) v(x,{'numeric'},{'scalar','positive','integer'},mfilename,'nReps'));
 addParameter(p, 'nDirs', 4, @(x) v(x,{'numeric'},{'scalar','positive','integer'},mfilename,'nDirections'));
+addParameter(p, 'directions', [], @(x) v(x,{'numeric'},{'2d','nonempty'},mfilename,'directions'));
+addParameter(p, 'shuffle_directions', 0, @(x) v(x,{'logical'},[],mfilename,'shuffle_directions'));
 addParameter(p, 'bar_width', 100, @(x) v(x,{'numeric'},{'scalar','positive'},mfilename,'bar_width'));
 addParameter(p, 'bar_length', 800, @(x) v(x,{'numeric'},{'scalar','positive'},mfilename,'bar_length'));
 addParameter(p, 'bar_speed', 300, @(x) v(x,{'numeric'},{'scalar','positive'},mfilename,'bar_speed'));
@@ -29,6 +31,8 @@ video_fps = p.Results.video_fps;
 screenNumber = p.Results.screenNumber;
 nReps = p.Results.nReps;
 nDirs = p.Results.nDirs;
+directions = p.Results.directions;
+shuffle_directions = p.Results.shuffle_directions;
 bar_width = p.Results.bar_width;
 bar_length = p.Results.bar_length;
 bar_speed = p.Results.bar_speed;
@@ -38,11 +42,11 @@ multisample = p.Results.multisample;
 
 clearvars varargin p v
 
-%% Import movie.
 if ~bitxor(isempty(video_filename), isempty(videomat))
     error('Precisely one video filename or video variable is required.')
 end
 
+%% Import movie.
 if isempty(videomat)
     videoobj = VideoReader(video_filename);
     videomat = squeeze(read(videoobj));
@@ -96,10 +100,15 @@ try
     clearvars videomat
     
     %% Prepare moving bar texture.
-    directions = repmat(0:(360/nDirs):(360-(360/nDirs)),nReps,1);
-%     for i = 1:nReps
-%         directions(i,:) = directions(i,randperm(nDirs));
-%     end
+    if isempty(directions)
+        directions = repmat(0:(360/nDirs):(360-(360/nDirs)),nReps,1);
+    end
+    nDirs = length(directions);
+    if shuffle_directions
+        for i = 1:nReps
+            directions(i,:) = directions(i,randperm(nDirs));
+        end
+    end
     disp('Directions: ');
     disp(directions);
     directions = directions(:);
