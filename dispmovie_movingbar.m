@@ -21,7 +21,7 @@ addParameter(p, 'bar_length', 800, @(x) v(x,{'numeric'},{'scalar','positive'},mf
 addParameter(p, 'bar_speed', 300, @(x) v(x,{'numeric'},{'scalar','positive'},mfilename,'bar_speed'));
 addParameter(p, 'bar_color', 1, @(x) v(x,{'numeric'},{'2d','>=',0,'<=',1},mfilename,'bar_color'));
 addParameter(p, 'barDispBuffer', 10, @(x) v(x,{'numeric'},{'scalar','nonnegative'},mfilename,'barDispBuffer'));
-addParameter(p, 'multisample', 4, @(x) v(x,{'numeric'},{'scalar','nonnegative','integer'},mfilename,'multisample'));
+addParameter(p, 'multisample', 8, @(x) v(x,{'numeric'},{'scalar','nonnegative','integer'},mfilename,'multisample'));
 
 parse(p, varargin{:});
 
@@ -83,6 +83,7 @@ try
     screen_ifi = Screen('GetFlipInterval',window);
     topPriorityLevel = MaxPriority(window);
     Screen('BlendFunction', window, 'GL_SRC_ALPHA', 'GL_ONE_MINUS_SRC_ALPHA');
+    clearvars windowRect
     
     if screen_ifi > video_ifi
         warning('Input video FPS exceeds screen FPS by %.2f%%. May result in inaccurate frame timing.', (video_fps - 1/screen_ifi) / video_fps * 100)
@@ -98,6 +99,19 @@ try
         frametex(i) = Screen('MakeTexture', window, videomat(:,:,i));
     end
     clearvars videomat
+    
+    %% Create circular mask.
+    maskmat = zeros(screenYpx, screenXpx, 2);
+    maskradius = min([videodim(1); videodim(2); screenXpx; screenYpx])/2;
+    for x = 1:screenXpx
+        for y = 1:screenYpx
+            if (x-xcenter)^2+(y-ycenter)^2 > maskradius^2
+                maskmat(y,x,2) = 1;
+            end
+        end
+    end
+    masktex = Screen('MakeTexture', window, maskmat);
+    clearvars screenXpx screenYpx maskmat
     
     %% Prepare moving bar texture.
     if isempty(directions)
@@ -121,24 +135,6 @@ try
     barDestRect = [0 0 bar_length+2 bar_width];
     clearvars barmat
     
-    %% Calculate bar initial position(s).
-    videoRect_cornerAngle = atand(videodim(1)/videodim(2));
-    dist_center2bar_init = NaN(nTrials,1);
-    
-    % Try to remove for loop?
-    for i = 1:nTrials
-        direction = directions(i);
-        if direction <= videoRect_cornerAngle || direction >= 360-videoRect_cornerAngle || (direction >= 180-videoRect_cornerAngle && direction <= 180+videoRect_cornerAngle)
-            dist_center2bar_init(i) = videodim(2)/2/abs(cosd(direction)) + bar_length/2 + min([bar_width/2,videodim(1)/2,videodim(2)/2]).*abs(tand(direction));
-        else
-            dist_center2bar_init(i) = videodim(1)/2/abs(sind(direction)) + bar_length/2;
-            if direction ~= 90 && direction ~= 270
-                dist_center2bar_init(i) = dist_center2bar_init(i) + min([bar_width/2,videodim(1)/2,videodim(2)/2])./abs(tand(direction));
-            end
-        end
-    end
-    dist_center2bar_init = dist_center2bar_init + barDispBuffer;
-    
     %% Show stimulus.
     % Configure window to prepare to show movie.
     HideCursor(window);
@@ -147,18 +143,22 @@ try
     
     for i = 1:nTrials
         direction = directions(i);
-        dist_center2bar = dist_center2bar_init(i);
+        direction_cos = cosd(direction);
+        direction_sin = sind(direction);
+        dist_center2bar_init = maskradius + bar_length/2 + barDispBuffer;
+        dist_center2bar = dist_center2bar_init;
         Beeper('high');
         time0 = Screen('Flip', window);
         currentTime = time0;
         tic;
-        while ~KbCheck && dist_center2bar >= -dist_center2bar_init(i)
-            bar_pos = [xcenter+dist_center2bar*cosd(direction) ycenter-dist_center2bar*sind(direction)];
+        while ~KbCheck && dist_center2bar >= -dist_center2bar_init
+            bar_pos = [xcenter+dist_center2bar*direction_cos ycenter-dist_center2bar*direction_sin];
             frame2display = mod(round((currentTime-time0+screen_ifi)/video_ifi),videodim(end));
             barDestRect = CenterRectOnPoint(barDestRect, bar_pos(1), bar_pos(2));
             
             Screen('DrawTexture', window, frametex(frame2display));
             Screen('DrawTexture', window, bartex, [], barDestRect, -direction);
+            Screen('DrawTexture', window, masktex);
             currentTime = Screen('Flip', window, currentTime + 0.6*screen_ifi);
             
             dist_center2bar = dist_center2bar - bar_speed * screen_ifi;
