@@ -1,6 +1,6 @@
 % This function displays a single bar of uniform intensity moving at
 % uniform speed and various directions across an arbitrary
-% black-and-white movie background.
+% black-and-white movie background with a circular mask.
 
 function dispmovie_movingbar(input_video, varargin)
 
@@ -10,8 +10,6 @@ p = inputParser;
 v = @validateattributes;
 
 addRequired( p, 'input_video',             @(x) v(x,{'char','numeric'},{'nonempty'},mfilename,'input_video'));
-addParameter(p, 'video_filename',      [], @(x) v(x,{'char'},{'nonempty'},mfilename,'video_filename'));
-addParameter(p, 'videomat',            [], @(x) v(x,{'numeric'},{'nonempty','nonnan','nonnegative'},mfilename,'videomat'));
 addParameter(p, 'video_fps',           [], @(x) v(x,{'numeric'},{'scalar','nonnegative'},mfilename,'video_fps'));
 addParameter(p, 'screenNumber',        [], @(x) v(x,{'numeric'},{'scalar','integer','nonnegative'},mfilename,'screenNumber'));
 addParameter(p, 'nReps',                1, @(x) v(x,{'numeric'},{'scalar','positive','integer'},mfilename,'nReps'));
@@ -24,10 +22,8 @@ addParameter(p, 'bar_speed',          300, @(x) v(x,{'numeric'},{'scalar','posit
 addParameter(p, 'bar_color',            1, @(x) v(x,{'numeric'},{'2d','>=',0,'<=',1},mfilename,'bar_color'));
 addParameter(p, 'multisample',          8, @(x) v(x,{'numeric'},{'scalar','nonnegative','integer'},mfilename,'multisample'));
 
-parse(p, varargin{:});
+parse(p, input_video, varargin{:});
 
-video_filename = p.Results.video_filename;
-videomat = p.Results.videomat;
 video_fps = p.Results.video_fps;
 screenNumber = p.Results.screenNumber;
 nReps = p.Results.nReps;
@@ -42,22 +38,21 @@ multisample = p.Results.multisample;
 
 clearvars varargin p v
 
-% Check whether unique input video is given.
-if ~bitxor(isempty(video_filename), isempty(videomat))
-    error('Precisely one video filename or video variable is required.')
-end
-
 %% Import movie.
 % If video filename is given, read video file. Otherwise, use input video matrix.
-if isempty(videomat)
-    videoobj = VideoReader(video_filename);
+if ischar(input_video)
+    videoobj = VideoReader(input_video);
     videomat = squeeze(read(videoobj));
     video_fps = videoobj.Framerate;
-    clearvars video_filename
-elseif isempty(video_fps)
-    warning('Input video FPS not given. Assuming 60 FPS.');
-    video_fps = 60;
+    
+else
+    videomat = input_video;
+    if isempty(video_fps)
+        warning('Input video FPS not given. Assuming 60 FPS.');
+        video_fps = 60;
+    end
 end
+clearvars input_video
 
 videodim = size(videomat); % videodim(1) = height, videodim(2) = width, videodim(3) = timeframes. Assuming grayscale video.
 video_ifi = 1 / video_fps; % interframe interval in seconds.
