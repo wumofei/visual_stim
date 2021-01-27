@@ -9,8 +9,9 @@ Process video file to create and display visual stimulus.
    * [Dependencies](#dependencies)
    * [Usage](#usage)
    * [Bugs](#bugs)
+   * [To-do](#to-do)
 
-<!-- Added by: mofei, at: Wed Jan 27 15:41:33 CST 2021 -->
+<!-- Added by: mofei, at: Wed Jan 27 15:50:55 CST 2021 -->
 
 <!--te-->
 
@@ -27,3 +28,13 @@ Call `video2stim.m` on video file (currently tested with 8-bit grayscale `.avi` 
 # Bugs
 
 * Psychtoolbox may throw a synchronization failure error when calling `dispmovie.m` or `dispmovie_movingbar.m`. As far as I can tell, this is a hardware problem and not much can be done by changing code. Try rerunning a few times, or using better graphics hardware. You may skip Psychtoolbox synchronization tests by setting `Screen('Preference','SkipSyncTests',1)`, but this may result in inaccurate stimulus presentation.
+
+# To-do
+
+* Integrate mean intensity and contrast adjustments in `video_linstretch.m` into display functions.
+
+* Research edge detection kernels.
+
+* Add recording triggers.
+
+* Add gamma table lookup?
