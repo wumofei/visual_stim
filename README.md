@@ -4,6 +4,14 @@ Process video file to create and display visual stimulus.
 
 # Table of Contents
 <!--ts-->
+   * [Natural Motion Stimulus](#natural-motion-stimulus)
+   * [Table of Contents](#table-of-contents)
+   * [Dependencies](#dependencies)
+   * [Usage](#usage)
+   * [Bugs](#bugs)
+
+<!-- Added by: mofei, at: Wed Jan 27 15:41:33 CST 2021 -->
+
 <!--te-->
 
 # Dependencies
