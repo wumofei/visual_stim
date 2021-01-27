@@ -1,7 +1,48 @@
-% This function displays a single bar of uniform intensity moving at
-% uniform speed and various directions across an arbitrary
-% black-and-white movie background with a circular mask.
+%{
+Display a single bar of uniform intensity moving at uniform speed
+along various directions across an arbitrary black-and-white movie
+background with a circular mask.
 
+# Required arguments:
+
+`input_video`: char or matrix. If char, interpret as video filename.
+Otherwise, interpret as 8-bit grayscale video matrix. Currently tested
+with 8-bit grayscale .avi files only.
+
+# Optional arguments (enter as name-value pairs after required
+arguments):
+
+`video_fps`: scalar in frames per second. Default 60.
+
+`screenNumber`: integer. Number corresponding to screen on which to
+display stimulus. Default finds largest screennumber among connected
+screens.
+
+`nReps`: integer. Number of repetitions to display stimulus. Default 1.
+
+`nDirs`: integer. During each repetition, number of directions to show
+moving bar. Default 4.
+
+`directions`: numeric 2D array. Specify directions to show moving bar.
+If left empty, finds `nDirs` number of directions equally spaced from 0
+to 360 degrees. Default empty.
+
+`shuffle_directions`: binary scalar. Permute directions during each
+repetition. Default 0.
+
+`bar_width`: positive scalar in pixels. Default 100.
+
+`bar_length`: positive scalar in pixels. Default 800.
+
+`bar_speed`: positive scalar in pixels per second. Default 300.
+
+`bar_color`: scalar between 0 and 1. Grayscale intensity of moving bar.
+
+`multisample`: positive integer. Reduce jagged artifacts during diagonal
+bar movement by calculating multiple samples for each pixels.
+Performance depends on graphics hardware. Default 4.
+
+%}
 function dispmovie_movingbar(input_video, varargin)
 
 %% Check inputs.
@@ -9,21 +50,22 @@ function dispmovie_movingbar(input_video, varargin)
 p = inputParser;
 v = @validateattributes;
 
-addRequired( p, 'input_video',             @(x) v(x,{'char','numeric'},{'nonempty'},mfilename,'input_video'));
-addParameter(p, 'video_fps',           [], @(x) v(x,{'numeric'},{'scalar','nonnegative'},mfilename,'video_fps'));
-addParameter(p, 'screenNumber',        [], @(x) v(x,{'numeric'},{'scalar','integer','nonnegative'},mfilename,'screenNumber'));
-addParameter(p, 'nReps',                1, @(x) v(x,{'numeric'},{'scalar','positive','integer'},mfilename,'nReps'));
-addParameter(p, 'nDirs',                4, @(x) v(x,{'numeric'},{'scalar','positive','integer'},mfilename,'nDirections'));
-addParameter(p, 'directions',          [], @(x) v(x,{'numeric'},{'2d','nonempty'},mfilename,'directions'));
-addParameter(p, 'shuffle_directions',   0, @(x) v(x,{'logical'},[],mfilename,'shuffle_directions'));
-addParameter(p, 'bar_width',          100, @(x) v(x,{'numeric'},{'scalar','positive'},mfilename,'bar_width'));
-addParameter(p, 'bar_length',         800, @(x) v(x,{'numeric'},{'scalar','positive'},mfilename,'bar_length'));
-addParameter(p, 'bar_speed',          300, @(x) v(x,{'numeric'},{'scalar','positive'},mfilename,'bar_speed'));
-addParameter(p, 'bar_color',            1, @(x) v(x,{'numeric'},{'2d','>=',0,'<=',1},mfilename,'bar_color'));
-addParameter(p, 'multisample',          8, @(x) v(x,{'numeric'},{'scalar','nonnegative','integer'},mfilename,'multisample'));
+addRequired( p, 'input_video',             @(x) v(x,{'char','numeric'},{'nonempty'},mfilename,'input_video'));                 % filename or matrix.
+addParameter(p, 'video_fps',           [], @(x) v(x,{'numeric'},{'scalar','nonnegative'},mfilename,'video_fps'));              % default 60 fps.
+addParameter(p, 'screenNumber',        [], @(x) v(x,{'numeric'},{'scalar','integer','nonnegative'},mfilename,'screenNumber')); % default find external screen with greatest port number.
+addParameter(p, 'nReps',                1, @(x) v(x,{'numeric'},{'scalar','positive','integer'},mfilename,'nReps'));           % repetitions of stimulus to show.
+addParameter(p, 'nDirs',                4, @(x) v(x,{'numeric'},{'scalar','positive','integer'},mfilename,'nDirections'));     % within each repetition, directions to show. E.g., `nDirs = 4` means shoing bar moving at 0, 90, 180, and 270 degrees.
+addParameter(p, 'directions',          [], @(x) v(x,{'numeric'},{'2d','nonempty'},mfilename,'directions'));                    % optionally specify directions of moving bar.
+addParameter(p, 'shuffle_directions',   0, @(x) v(x,{'logical'},[],mfilename,'shuffle_directions'));                           % whether to randomly permute directions within each repetition.
+addParameter(p, 'bar_width',          100, @(x) v(x,{'numeric'},{'scalar','positive'},mfilename,'bar_width'));                 % pixels.
+addParameter(p, 'bar_length',         800, @(x) v(x,{'numeric'},{'scalar','positive'},mfilename,'bar_length'));                % pixels.
+addParameter(p, 'bar_speed',          300, @(x) v(x,{'numeric'},{'scalar','positive'},mfilename,'bar_speed'));                 % pixels per second.
+addParameter(p, 'bar_color',            1, @(x) v(x,{'numeric'},{'2d','>=',0,'<=',1},mfilename,'bar_color'));                  % grayscale intensity of moving bar. Between 0 and 1.
+addParameter(p, 'multisample',          4, @(x) v(x,{'numeric'},{'scalar','nonnegative','integer'},mfilename,'multisample'));  % samples to calculate per pixel to reduce jagged diagonal movement. Depends on graphics hardware.
 
 parse(p, input_video, varargin{:});
 
+% Write parsed inputs.
 video_fps = p.Results.video_fps;
 screenNumber = p.Results.screenNumber;
 nReps = p.Results.nReps;
@@ -44,7 +86,6 @@ if ischar(input_video)
     videoobj = VideoReader(input_video);
     videomat = squeeze(read(videoobj));
     video_fps = videoobj.Framerate;
-    
 else
     videomat = input_video;
     if isempty(video_fps)
@@ -58,7 +99,7 @@ videodim = size(videomat); % videodim(1) = height, videodim(2) = width, videodim
 video_ifi = 1 / video_fps; % interframe interval in seconds.
 
 %% Initiate Psychtoolbox.
-PsychDefaultSetup(2); % AssertOpenGL, unify key names, unify color ranges to 0 thru 1 (instead of 0 thru 255)
+PsychDefaultSetup(2); % AssertOpenGL, unify key names, unify color ranges to 0 thru 1 (instead of 0 thru 255).
 KbReleaseWait;
 
 if isempty(screenNumber)
@@ -67,7 +108,7 @@ end
 
 black = BlackIndex(screenNumber); % usually equal to 0.
 
-% Use try/catch to avoid getting stuck on a black screen.
+% Use try/catch to avoid getting stuck on a black screen upon error.
 try
     % Configure Psychtoolbox.
     Screen('Preference', 'SkipSyncTests', 0);                          % perform standard screen sync tests.
@@ -76,10 +117,10 @@ try
     
     %% Open and configure window.
     [window, windowRect] = PsychImaging('OpenWindow', screenNumber, black, [], [], [], [], multisample); % open black window, with multisample option to (hopefully) improve diagonal movement.
-    [screenXpx, screenYpx] = Screen('WindowSize', window); % get screen size.
-    [xcenter, ycenter] = RectCenter(windowRect); % get screen center.
-    screen_ifi = Screen('GetFlipInterval',window); % interframe interval in seconds.
-    topPriorityLevel = MaxPriority(window); % prepare CPU priority during stimulus presentation.
+    [screenXpx, screenYpx] = Screen('WindowSize', window);                     % get screen size.
+    [xcenter, ycenter] = RectCenter(windowRect);                               % get screen center.
+    screen_ifi = Screen('GetFlipInterval',window);                             % interframe interval in seconds.
+    topPriorityLevel = MaxPriority(window);                                    % prepare CPU priority during stimulus presentation.
     Screen('BlendFunction', window, 'GL_SRC_ALPHA', 'GL_ONE_MINUS_SRC_ALPHA'); % standard configuration for blending.
     clearvars windowRect
     
@@ -182,14 +223,15 @@ try
             % Place moving bar destination on calculated moving bar center position.
             barDestRect = CenterRectOnPoint(barDestRect, bar_pos(1), bar_pos(2));
             
-            % Draw textures, sequentially from background to foreground.
+            % Draw textures, sequentially from background to foreground. Step (2) of
+            % process mentioned above.
             Screen('DrawTexture', window, frametex(frame2display));
             Screen('DrawTexture', window, bartex, [], barDestRect, -direction);
             Screen('DrawTexture', window, masktex);
             
             % Flip to screen with option to ensure precise timing. Indicates all
             % drawing commands should be finished and ready to flip to screen by 0.7
-            % of an interframe interval.
+            % of an interframe interval. Step (3) of process mentioned above.
             currentTime = Screen('Flip', window, currentTime + 0.7*screen_ifi);
             
             % Update bar position.
