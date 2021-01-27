@@ -22,7 +22,7 @@ Process video file to create and display visual stimulus.
 
 # Usage
 
-Call `video2stim.m` on video file (currently tested with 8-bit grayscale `.avi` files only) to produce a downsampled checkerboard flicker file and a convolved edge detection file. Call `dispmovie.m` on the edge detetion file to display directly. Call `dispmovie_movingbar.m` on the downsampled file to display a bright bar moving across background checkerboard flicker.
+Call `video2stim.m` on video file (currently tested with 8-bit grayscale `.avi` files only) to produce a downsampled checkerboard flicker file and a convolved edge detection file. Call `dispmovie.m` on the edge detection file to display directly. Call `dispmovie_movingbar.m` on the downsampled file to display a bright bar moving across background checkerboard flicker.
 
 # Bugs
 
