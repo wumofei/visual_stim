@@ -17,7 +17,7 @@ Process video file to create and display visual stimulus.
 
 # Dependencies
 
-* MATLAB R2019a or R2020b.
+* MATLAB R2019a or R2020b. Image Processing Toolbox add-on is required for MATLAB R2020b.
 * Psychophysics Toolbox 3.0.17.
 * Performance varies with graphics hardware.
 
