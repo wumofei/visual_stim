@@ -25,8 +25,8 @@ arguments):
 `output_retina_size`: 1x2 positive scalar array in microns. Height and
 width of target retina. Default [880 660] in Wei lab rig.
 
-`output_viewing_dist`: 1xn positive scalar array in centimeters. Optimal
-viewing distance of animal to scene. Default 10.
+`output_viewing_dist`: positive scalar in centimeters. Optimal viewing
+distance of animal to scene. Default 10.
 
 `output_dim`: 1x2 positive integer array in pixels. Default [800 600] in
 Wei lab OLED.
@@ -74,7 +74,7 @@ addParameter(p,'output_dim',             [800 600], @(x) v(x,{'numeric'},{'numel
 addParameter(p,'output_resolution',             50, @(x) v(x,{'numeric'},{'scalar','positive'},mfilename,'output_resolution'));      % size of background flicker checkerboard squares (pixels).
 addParameter(p,'visualAngle2retinaDist',        32, @(x) v(x,{'numeric'},{'scalar','positive'},mfilename,'visualAngle2retinaDist')); % distance on target retina per visual angle (microns/degree).
 addParameter(p,'input_timeframe',               [], @(x) v(x,{'numeric'},{'numel',2,'nonnegative'},mfilename,'input_timeframe'));    % temporal segment of input video to process (seconds or timeframes).
-addParameter(p,'output_dir',                   pwd, @(x) v(x,{'char'},{'nonempty'},mfilename,'output_dir'));                         % directory to write output videos.
+addParameter(p,'output_dir',                    [], @(x) v(x,{'char'},{'nonempty'},mfilename,'output_dir'));                         % directory to write output videos.
 addParameter(p,'kernel_factor',                  2, @(x) v(x,{'numeric'},{'scalar'},mfilename,'kernel_factor'));                     % multiplier to convolution kernel. Modulates overall intensity.
 
 parse(p, input_filename, input_dist, input_focal_length, input_sensor_size, varargin{:});
@@ -101,9 +101,6 @@ end
 if size(output_retina_size,1) == 2
     output_retina_size = output_retina_size';
 end
-if size(output_viewing_distance,2) ~= 1
-    output_viewing_distance = output_viewing_distance';
-end
 if size(output_dim,1) == 2
     output_dim = output_dim';
 end
@@ -115,168 +112,159 @@ output_retina_size = output_retina_size * 10^-6;
 output_viewing_distance = output_viewing_distance * 10^-2;
 visualAngle2retinaDist = visualAngle2retinaDist * 10^-6;
 
-%% Read input video.
-input_videoobj = VideoReader(input_filename);
-[~,filename,~] = fileparts(input_filename);
-input_fps = input_videoobj.Framerate;
+%% Prepare input video.
+input_videoObj = VideoReader(input_filename);
 clearvars input_filename
 
 % Optionally, segment video temporally.
 if isempty(input_timeframe)
-    input_timeframe = [1 input_videoobj.Duration*input_fps]; % select full-length input video
-else
+    input_timeframe = [1 input_videoObj.NumFrames];
+elseif ~isempty(input_timeframe)
     str = input('Is input timeframe in units of frame-numbers (y) or seconds (n)? y/n: ','s');
     while str ~= 'y' && str ~= 'n'
         str = input('Is input timeframe in units of frame-numbers (y) or seconds (n)? Please enter y/n: ','s');
     end
     if str == 'n'
-        input_timeframe = input_timeframe .* input_fps;
+        input_timeframe = input_timeframe .* input_fps + 1;
     end
     clearvars str
+    if input_timeframe(2) > input_videoObj.NumFrames
+        error('Input video is not long enough to accomodate requested timeframe.')
+    end
 end
 
-% Extract frames from video object.
-input_video = im2double(squeeze(read(input_videoobj, input_timeframe))); % squeeze to remove empty dimension resulting from reading grayscale video. Convert from 8-bit values to floats for greater accuracy during processing.
-input_dim = [size(input_video,2) size(input_video,1)]; % x,y
-nFrames = size(input_video,3);
-clearvars input_timeframe input_videoobj
-
-%% Normalize input video to range [0,1].
-input_video = mat2gray(input_video); % stretch to full dynamic range.
-
-%% Apply high-pass filter.
-kernel = kernel_factor * ...
-         [-1 -1 -1;
-          -1  8 -1;
-          -1 -1 -1]; % naive kernel for edge detection.
-input_video_filtered = zeros(input_dim(2),input_dim(1),nFrames);
-for i = 1:nFrames
-    input_video_filtered(:,:,i) = conv2(input_video(:,:,i), kernel, 'same');
-end
-input_video_filtered = max(0,min(input_video_filtered,1)); % restrict between [0,1].
-clearvars i kernel kernel_factor
-
-%% Crop input video to obtain desired output video size.
+%% Determine pixel range to crop.
 % Find desired size of imagery depicted in output video.
-output_landscape_size = output_retina_size / visualAngle2retinaDist * pi/180 .* output_viewing_distance; % x,y
+output_landscape_size = output_retina_size / visualAngle2retinaDist * pi/180 * output_viewing_distance; % x,y
 
 % Approximate size of imagery depicted in input video using pinhole model.
 input_landscape_size = input_sensor_size / input_focal_length * input_dist; % x,y
-input_landscape_per_pixel = input_landscape_size ./ input_dim; % x,y
+input_landscape_per_pixel = input_landscape_size ./ [input_videoObj.Width input_videoObj.Height]; % x,y
 
 % Find pixel dimensions to crop input video.
 crop_dim = round(output_landscape_size ./ input_landscape_per_pixel); % x,y.
 clearvars output_landscape_size input_landscape_size input_landscape_per_pixel output_retina_size angle2retina_dist input_sensor_size input_focal_length input_dist
 
 % Check if desired crop dimensions are larger than input video dimensions.
-if any(crop_dim > input_dim)
-    idInsufficient = sum(crop_dim > input_dim,2) > 0;
-    disp(['Input video is not sufficiently large to accomodate the following desired output viewing distance(s): ', sprintf('%.2f ', output_viewing_distance(idInsufficient)*10^2), 'cm.']);
-    crop_dim(idInsufficient) = [];
+if any(crop_dim > [input_videoObj.Width input_videoObj.Height])
+    disp(['Input video is not sufficiently large to accomodate the desired output viewing distance(s): ', sprintf('%.2f ', output_viewing_distance*10^2), 'cm.']);
 end
-if isempty(crop_dim)
-    error('Input video is not sufficiently large to accomodate any desired viewing distance.')
-end
-
-nOutputs = size(crop_dim,1);
-clearvars idInsufficient
 
 % If input video dimensions are larger than the desired cropped dimensions, query user for area to crop.
-topleft_coord = ones(nOutputs,2);
-if any(crop_dim < input_dim)
-    for i = 1:nOutputs
-        if sum(crop_dim(i,:) == input_dim,2) ~= 2
-            prompt = sprintf('Input video dimensions are larger than the desired cropped dimensions corresponding to desired viewing distance %.2f centimeters.\nInput video is %ix%i pixels, whereas the desired crop is %ix%i pixels.\nSelect top-left pixel index to crop by entering a two-membered numeric array (max [%i,%i]),\nor enter ''center'', ''top'', ''bottom'', ''left'', ''right'', ''topleft'', ''topright'', ''bottomleft'', or ''bottomright''. \nIf left empty, default crop center of input video:\n', output_viewing_distance(i)*10^2, input_dim(1), input_dim(2), crop_dim(i,1), crop_dim(i,2), input_dim(1)-crop_dim(i,1), input_dim(2)-crop_dim(i,2));
-            topleft_coord_i = input(prompt);
-            if isempty(topleft_coord_i)
-                topleft_coord_i = round((input_dim-crop_dim(i,:))/2);
-            else
-                while ~strcmp(topleft_coord_i,'center') && ~strcmp(topleft_coord_i,'top') && ~strcmp(topleft_coord_i,'bottom') && ~strcmp(topleft_coord_i,'left') && ~strcmp(topleft_coord_i,'right') && ~strcmp(topleft_coord_i,'topright') && ~strcmp(topleft_coord_i,'topleft') && ~strcmp(topleft_coord_i,'bottomright') && ~strcmp(topleft_coord_i,'bottomleft') && ~(isnumeric(topleft_coord_i) && numel(topleft_coord_i) == 2 && all(topleft_coord_i + crop_dim(i,:) <= input_dim))
-                    if isnumeric(topleft_coord_i) && any(topleft_coord_i + crop_dim(i,:) > input_dim)
-                        topleft_coord_i = input(sprintf('Input top-left pixel index is too far right/down to accomodate desired cropped dimensions. Re-enter top-left pixel index (max [%i,%i]),\nor press enter to crop center of input video:\n', input_dim(1)-crop_dim(i,1), input_dim(2)-crop_dim(i,2)));
-                    else
-                        disp('Input not recognized./n')
-                        topleft_coord_i = input(prompt);
-                    end
-                end
-                if isnumeric(topleft_coord_i)
-                elseif strcmpi(topleft_coord_i,'center')
-                    topleft_coord_i = round((input_dim-crop_dim(i,:))/2);
-                elseif strcmpi(topleft_coord_i,'top')
-                    topleft_coord_i = [round((input_dim(1)-crop_dim(i,1))/2) 1];
-                elseif strcmpi(topleft_coord_i,'bottom')
-                    topleft_coord_i = [round((input_dim(1)-crop_dim(i,1))/2) input_dim(2)-crop_dim(2)];
-                elseif strcmpi(topleft_coord_i,'left')
-                    topleft_coord_i = [1 round((input_dim(2)-crop_dim(i,2))/2)];
-                elseif strcmpi(topleft_coord_i,'right')
-                    topleft_coord_i = [input_dim(1)-crop_dim(1) round((input_dim(2)-crop_dim(i,2))/2)];
-                elseif strcmpi(topleft_coord_i,'topleft')
-                    topleft_coord_i = [1 1];
-                elseif strcmpi(topleft_coord_i,'topright')
-                    topleft_coord_i = [input_dim(1)-crop_dim(1) 1];
-                elseif strcmpi(topleft_coord_i,'bottomleft')
-                    topleft_coord_i = [1 input_dim(2)-crop_dim(2)];
-                elseif strcmpi(topleft_coord_i,'bottomright')
-                    topleft_coord_i = [input_dim(1)-crop_dim(1) input_dim(2)-crop_dim(2)];
+if any(crop_dim < [input_videoObj.Width input_videoObj.Height])
+    if sum(crop_dim == [input_videoObj.Width input_videoObj.Height],2) ~= 2
+        prompt = sprintf('Input video dimensions are larger than the desired cropped dimensions. \nInput video is %ix%i pixels, whereas the desired crop is %ix%i pixels.\nSelect top-left pixel index to crop by entering a two-membered numeric array (max [%i,%i]),\nor enter ''center'', ''top'', ''bottom'', ''left'', ''right'', ''topleft'', ''topright'', ''bottomleft'', or ''bottomright''. \nIf left empty, default crop center of input video:\n', input_videoObj.Width, input_videoObj.Height, crop_dim(1), crop_dim(2), input_videoObj.Width-crop_dim(1), input_videoObj.Height-crop_dim(2));
+        topleft_coord = input(prompt);
+        if isempty(topleft_coord)
+            topleft_coord = round(([input_videoObj.Width input_videoObj.Height]-crop_dim)/2);
+        else
+            while ~strcmp(topleft_coord,'center') && ~strcmp(topleft_coord,'top') && ~strcmp(topleft_coord,'bottom') && ~strcmp(topleft_coord,'left') && ~strcmp(topleft_coord,'right') && ~strcmp(topleft_coord,'topright') && ~strcmp(topleft_coord,'topleft') && ~strcmp(topleft_coord,'bottomright') && ~strcmp(topleft_coord,'bottomleft') && ~(isnumeric(topleft_coord) && numel(topleft_coord) == 2 && all(topleft_coord + crop_dim <= input_dim))
+                if isnumeric(topleft_coord) && any(topleft_coord + crop_dim > [input_videoObj.Width input_videoObj.Height])
+                    topleft_coord = input(sprintf('Input top-left pixel index is too far right/down to accomodate desired cropped dimensions. Re-enter top-left pixel index (max [%i,%i]),\nor press enter to crop center of input video:\n', input_dim(1)-crop_dim(i,1), input_dim(2)-crop_dim(i,2)));
+                else
+                    disp('Input not recognized./n')
+                    topleft_coord = input(prompt);
                 end
             end
+            if isnumeric(topleft_coord)
+                elseif strcmpi(topleft_coord,'center')
+                    topleft_coord = round(([input_videoObj.Width input_videoObj.Height]-crop_dim)/2);
+                elseif strcmpi(topleft_coord,'top')
+                    topleft_coord = [round((input_videoObj.Width-crop_dim(1))/2) 1];
+                elseif strcmpi(topleft_coord,'bottom')
+                    topleft_coord = [round((input_videoObj.Width-crop_dim(1))/2) input_videoObj.Height-crop_dim(2)];
+                elseif strcmpi(topleft_coord,'left')
+                    topleft_coord = [1 round((input_videoObj.Height-crop_dim(2))/2)];
+                elseif strcmpi(topleft_coord,'right')
+                    topleft_coord = [input_videoObj.Width-crop_dim(1) round((input_videoObj.Height-crop_dim(2))/2)];
+                elseif strcmpi(topleft_coord,'topleft')
+                    topleft_coord = [1 1];
+                elseif strcmpi(topleft_coord,'topright')
+                    topleft_coord = [input_videoObj.Width-crop_dim(1) 1];
+                elseif strcmpi(topleft_coord,'bottomleft')
+                    topleft_coord = [1 input_videoObj.Height-crop_dim(2)];
+                elseif strcmpi(topleft_coord,'bottomright')
+                    topleft_coord = [input_videoObj.Width-crop_dim(1) input_videoObj.Height-crop_dim(2)];
+            end
         end
-        topleft_coord(i,:) = topleft_coord_i;
     end
 end
-clearvars topleft_coord_i prompt input_dim i
+clearvars prompt
 
-% Crop input video.
-cropped_video = zeros(max(crop_dim(:,2)), max(crop_dim(:,1)), nFrames, nOutputs);
-cropped_video_filtered = cropped_video;
-for i = 1:nOutputs
-    cropped_video(1:crop_dim(i,2),1:crop_dim(i,1),:,i) = input_video(topleft_coord(2):(topleft_coord(2)+crop_dim(i,2)-1), topleft_coord(1):(topleft_coord(1)+crop_dim(i,1)-1), :);
-    cropped_video_filtered(1:crop_dim(i,2),1:crop_dim(i,1),:,i) = input_video_filtered(topleft_coord(2):(topleft_coord(2)+crop_dim(i,2)-1), topleft_coord(1):(topleft_coord(1)+crop_dim(i,1)-1), :);
-end
-clearvars topleft_coord input_video input_video_filtered
+%% Make directories to store processed video frames.
+[~, filename] = fileparts(input_videoObj.Name);
+mkdir(input_videoObj.Path, [filename '_crop_scale']);
+mkdir(input_videoObj.Path, [filename '_crop_scale_filter']);
+mkdir(input_videoObj.Path, [filename '_bkgdFlicker']);
 
-%% Scale cropped video to obtain pixel dimensions of output display/monitor.
-scaled_video = zeros(output_dim(2), output_dim(1), nFrames, nOutputs);
-scaled_video_filtered = scaled_video;
-for i = 1:nOutputs
-    scaled_video(:,:,:,i) = imresize(cropped_video(1:crop_dim(i,2), 1:crop_dim(i,1),:,i), [output_dim(2) output_dim(1)]);
-    scaled_video_filtered(:,:,:,i) = imresize(cropped_video_filtered(1:crop_dim(i,2), 1:crop_dim(i,1),:,i), [output_dim(2) output_dim(1)]);
-end
-scaled_video = max(0,min(scaled_video,1));                   % restrict to [0,1].
-scaled_video_filtered = max(0,min(scaled_video_filtered,1));
-scaled_video = mat2gray(scaled_video);                       % stretch to full dynamic range [0,1].
-scaled_video_filtered = mat2gray(scaled_video_filtered);
-clearvars crop_dim nFrames cropped_video_filtered
-
-% Write output videos.
-for i = 1:nOutputs
-    output_file = VideoWriter([output_dir '/' filename '_out_scaled_viewingdistance' num2str(output_viewing_distance(i)*10^2,2) 'cm.avi'], 'Grayscale AVI');
-    output_file.FrameRate = input_fps;
-    open(output_file);
-    writeVideo(output_file, scaled_video(:,:,:,i));
-    close(output_file);
+%% Process video to produce frames.
+iscolor = strcmp(input_videoObj.VideoFormat, 'RGB24');
+kernel = kernel_factor * ...
+         [-1 -1 -1;
+          -1  8 -1;
+          -1 -1 -1]; % naive kernel for edge detection.
+      
+% Process frame-by-frame.
+for i = input_timeframe(1):input_timeframe(2)
+    frame = squeeze(read(input_videoObj,i)); % read frame from input video.
+    frame = frame(topleft_coord(2)-1:(topleft_coord(2)+crop_dim(2)), topleft_coord(1)-1:(topleft_coord(1)+crop_dim(1))); % crop frame leaving 1-pixel cushion to facilitate 3x3 kernel convolution.
+    if iscolor
+        frame = rgb2gray(frame); % convert to grayscale if necessary.
+    end
+    frame_filter = uint8(conv2(frame, kernel, 'same')); % apply high-pass filter.
+    frame_filter = frame_filter(2:end-1,2:end-1); % remove 1-pixel cushion.
+    frame = frame(2:end-1,2:end-1); % remove 1-pixel cushion.
     
-    output_file = VideoWriter([output_dir '/' filename '_out_scaled_filtered_viewingdistance' num2str(output_viewing_distance(i)*10^2,2) 'cm.avi'], 'Grayscale AVI');
-    output_file.FrameRate = input_fps;
-    open(output_file);
-    writeVideo(output_file, scaled_video_filtered(:,:,:,i));
-    close(output_file);
+    % Scale to match output pixel dimensions.
+    frame = imresize(frame, [output_dim(2) output_dim(1)]);
+    frame_filter = imresize(frame_filter, [output_dim(2) output_dim(1)]);
+    
+    % Down-sample to produce background checkerboard flicker.
+    frame_downsample = imresize(frame, [output_dim(2)/output_resolution output_dim(1)/output_resolution]);
+    bkgdFlicker = repelem(frame_downsample, output_resolution, output_resolution);
+    
+    % Write processed frames to disk.
+    imgname = sprintf('frame%i.tif',i);
+    imwrite(frame, fullfile(input_videoObj.Path, [filename '_crop_scale'], imgname), 'tif'); % write cropped and scaled frame.
+    imwrite(frame_filter, fullfile(input_videoObj.Path, [filename '_crop_scale_filter'], imgname), 'tif'); % write cropped, scaled, and filtered frame.
+    imwrite(bkgdFlicker, fullfile(input_videoObj.Path, [filename '_bkgdFlicker'], imgname), 'tif'); % write background flicker frame.
+end
+clearvars iscolor kernel frame frame_filter bkgdFlicker frame_downsample
+
+%% Recombine written frames into AVI files.
+if isempty(output_dir)
+    output_dir = input_videoObj.Path;
 end
 
-%% Down-sample to obtain desired (reduced) output resolution.
-downsampled_video = imresize(cropped_video, [output_dim(2)/output_resolution output_dim(1)/output_resolution]);
-output_video = repelem(downsampled_video, output_resolution, output_resolution);
-output_video = mat2gray(output_video);
-clearvars output_dim cropped_video downsampled_video output_resolution scaled_video scaled_video_filtered
+outfile = VideoWriter(fullfile(output_dir, [filename '_crop_scale.avi']), 'Grayscale AVI');
+outfile.FrameRate = input_videoObj.FrameRate;
+open(outfile);
 
-%% Write output video to .avi file.
-for i = 1:nOutputs
-    output_file = VideoWriter([output_dir '/' filename '_out_final_viewingdistance' num2str(output_viewing_distance(i)*10^2,2) 'cm.avi'], 'Grayscale AVI');
-    output_file.FrameRate = input_fps;
-    open(output_file);
-    writeVideo(output_file, output_video(:,:,:,i));
-    close(output_file);
+for i = input_timeframe(1):input_timeframe(2)
+    frame = imread(fullfile(input_videoObj.Path, [filename '_crop_scale'], sprintf('frame%i.tif',i)));
+    writeVideo(outfile, frame);
 end
+close(outfile);
+
+outfile = VideoWriter(fullfile(output_dir, [filename '_crop_scale_filter.avi']), 'Grayscale AVI');
+outfile.FrameRate = input_videoObj.FrameRate;
+open(outfile);
+
+for i = input_timeframe(1):input_timeframe(2)
+    frame = imread(fullfile(input_videoObj.Path, [filename '_crop_scale_filter'], sprintf('frame%i.tif',i)));
+    writeVideo(outfile, frame);
+end
+close(outfile);
+
+outfile = VideoWriter(fullfile(output_dir, [filename '_bkgdFlicker.avi']), 'Grayscale AVI');
+outfile.FrameRate = input_videoObj.FrameRate;
+open(outfile);
+
+for i = input_timeframe(1):input_timeframe(2)
+    frame = imread(fullfile(input_videoObj.Path, [filename '_bkgdFlicker'], sprintf('frame%i.tif',i)));
+    writeVideo(outfile, frame);
+end
+close(outfile);
 
 end
 
