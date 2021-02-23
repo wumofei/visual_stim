@@ -147,7 +147,7 @@ clearvars output_landscape_size input_landscape_size input_landscape_per_pixel o
 
 % Check if desired crop dimensions are larger than input video dimensions.
 if any(crop_dim > [input_videoObj.Width input_videoObj.Height])
-    disp(['Input video is not sufficiently large to accomodate the desired output viewing distance(s): ', sprintf('%.2f ', output_viewing_distance*10^2), 'cm.']);
+    error(['Input video is not sufficiently large to accomodate the desired output viewing distance(s): ', sprintf('%.2f ', output_viewing_distance*10^2), 'cm.']);
 end
 
 % If input video dimensions are larger than the desired cropped dimensions, query user for area to crop.
@@ -188,6 +188,8 @@ if any(crop_dim < [input_videoObj.Width input_videoObj.Height])
             end
         end
     end
+else
+    topleft_coord = [1 1];
 end
 clearvars prompt
 
@@ -207,7 +209,7 @@ kernel = kernel_factor * ...
 % Process frame-by-frame.
 for i = input_timeframe(1):input_timeframe(2)
     frame = squeeze(read(input_videoObj,i)); % read frame from input video.
-    frame = frame(topleft_coord(2)-1:(topleft_coord(2)+crop_dim(2)), topleft_coord(1)-1:(topleft_coord(1)+crop_dim(1))); % crop frame leaving 1-pixel cushion to facilitate 3x3 kernel convolution.
+    frame = frame(topleft_coord(2)-1:(topleft_coord(2)+crop_dim(2)), topleft_coord(1)-1:(topleft_coord(1)+crop_dim(1)),:); % crop frame leaving 1-pixel cushion to facilitate 3x3 kernel convolution.
     if iscolor
         frame = rgb2gray(frame); % convert to grayscale if necessary.
     end
