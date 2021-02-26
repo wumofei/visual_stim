@@ -85,7 +85,9 @@ clearvars varargin p v
 if ischar(input_video)
     videoobj = VideoReader(input_video);
     videomat = squeeze(read(videoobj));
-    video_fps = videoobj.Framerate;
+    if isempty(video_fps)
+        video_fps = videoobj.Framerate;
+    end
 else
     videomat = input_video;
     if isempty(video_fps)
@@ -99,7 +101,7 @@ videodim = size(videomat); % videodim(1) = height, videodim(2) = width, videodim
 video_ifi = 1 / video_fps; % interframe interval in seconds.
 
 %% Initiate Psychtoolbox.
-PsychDefaultSetup(2); % AssertOpenGL, unify key names, unify color ranges to 0 thru 1 (instead of 0 thru 255).
+PsychDefaultSetup(2); % AssertOpenGL, unify key names, set color ranges to 0 thru 1 (instead of 0 thru 255).
 KbReleaseWait;
 
 if isempty(screenNumber)
@@ -134,7 +136,7 @@ try
     % dimensions are 800x600 pixels. Please scale/crop input video
     % appropriately before calling this function.
     if videodim(1) ~= screenYpx || videodim(2) ~= screenXpx
-        warning('Input movie (%i,%i) and output screen (%i,%i) do not have the same dimensions.', videodim(2), videodim(1), screenXpx, screenYpx);
+        warning('Input movie (%ix%i) and output screen (%ix%i) do not have the same dimensions.', videodim(2), videodim(1), screenXpx, screenYpx);
     end
     
     %% Convert movie frames to textures.

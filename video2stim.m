@@ -8,7 +8,7 @@ produce background flicker.
 # Required arguments:
 
 `input_video_filename`: char. Currently tested with 8-bit grayscale .avi
-files only.
+files and 24-bit color .mp4 files.
 
 `input_dist`: positive scalar in meters. Distance from lens to object(s)
 in video.
@@ -42,19 +42,21 @@ mouse.
 `input_timeframe`: 1x2 positive scalar array in either timeframes or
 seconds. Defaults to entire duration of input video.
 
-`output_dir`: char. Directory to write output videos. Default current
-directory.
+`output_dir`: char. Directory to write output videos. Default input
+video file directory.
 
 `kernel_factor`: optional scalar. Scaling factor applied to 3x3
 convolution kernel: 
 -1 -1 -1
 -1  8 -1
 -1 -1 -1
+Default 2.
 
 # Outputs:
 
 Scaled video, convolved scaled video, and downsampled video. Written to
-8-bit grayscale .avi files for each viewing distance given.
+8-bit grayscale .avi files, as well as folders containing all video
+frames. Default writes to same directory as input video file.
 %}
 
 function video2stim(input_filename, input_dist, input_focal_length, input_sensor_size, varargin)
@@ -79,7 +81,7 @@ addParameter(p,'kernel_factor',                  2, @(x) v(x,{'numeric'},{'scala
 
 parse(p, input_filename, input_dist, input_focal_length, input_sensor_size, varargin{:});
 
-% Write parsed inputs.
+% Write parsed inputs to variables.
 output_retina_size = p.Results.output_retina_size;
 output_viewing_distance = p.Results.output_viewing_dist;
 output_dim = p.Results.output_dim;
@@ -129,7 +131,8 @@ elseif ~isempty(input_timeframe)
     end
     clearvars str
     if input_timeframe(2) > input_videoObj.NumFrames
-        error('Input video is not long enough to accomodate requested timeframe.')
+        warning('Input video is not long enough to accomodate requested timeframe. Reading until end of input video.')
+        input_timeframe(2) = input_videoObj.NumFrames;
     end
 end
 
@@ -148,44 +151,40 @@ clearvars output_landscape_size input_landscape_size input_landscape_per_pixel o
 % Check if desired crop dimensions are larger than input video dimensions.
 if any(crop_dim > [input_videoObj.Width input_videoObj.Height])
     error(['Input video is not sufficiently large to accomodate the desired output viewing distance(s): ', sprintf('%.2f ', output_viewing_distance*10^2), 'cm.']);
-end
-
 % If input video dimensions are larger than the desired cropped dimensions, query user for area to crop.
-if any(crop_dim < [input_videoObj.Width input_videoObj.Height])
-    if sum(crop_dim == [input_videoObj.Width input_videoObj.Height],2) ~= 2
-        prompt = sprintf('Input video dimensions are larger than the desired cropped dimensions. \nInput video is %ix%i pixels, whereas the desired crop is %ix%i pixels.\nSelect top-left pixel index to crop by entering a two-membered numeric array (max [%i,%i]),\nor enter ''center'', ''top'', ''bottom'', ''left'', ''right'', ''topleft'', ''topright'', ''bottomleft'', or ''bottomright''. \nIf left empty, default crop center of input video:\n', input_videoObj.Width, input_videoObj.Height, crop_dim(1), crop_dim(2), input_videoObj.Width-crop_dim(1), input_videoObj.Height-crop_dim(2));
-        topleft_coord = input(prompt);
-        if isempty(topleft_coord)
-            topleft_coord = round(([input_videoObj.Width input_videoObj.Height]-crop_dim)/2);
-        else
-            while ~strcmp(topleft_coord,'center') && ~strcmp(topleft_coord,'top') && ~strcmp(topleft_coord,'bottom') && ~strcmp(topleft_coord,'left') && ~strcmp(topleft_coord,'right') && ~strcmp(topleft_coord,'topright') && ~strcmp(topleft_coord,'topleft') && ~strcmp(topleft_coord,'bottomright') && ~strcmp(topleft_coord,'bottomleft') && ~(isnumeric(topleft_coord) && numel(topleft_coord) == 2 && all(topleft_coord + crop_dim <= input_dim))
-                if isnumeric(topleft_coord) && any(topleft_coord + crop_dim > [input_videoObj.Width input_videoObj.Height])
-                    topleft_coord = input(sprintf('Input top-left pixel index is too far right/down to accomodate desired cropped dimensions. Re-enter top-left pixel index (max [%i,%i]),\nor press enter to crop center of input video:\n', input_dim(1)-crop_dim(i,1), input_dim(2)-crop_dim(i,2)));
-                else
-                    disp('Input not recognized./n')
-                    topleft_coord = input(prompt);
-                end
+elseif any(crop_dim < [input_videoObj.Width input_videoObj.Height])
+    prompt = sprintf('Input video dimensions are larger than the desired cropped dimensions. \nInput video is %ix%i pixels, whereas the desired crop is %ix%i pixels.\nSelect top-left pixel index to crop by entering a two-membered numeric array (max [%i,%i]),\nor enter ''center'', ''top'', ''bottom'', ''left'', ''right'', ''topleft'', ''topright'', ''bottomleft'', or ''bottomright''. \nIf left empty, default crop center of input video:\n', input_videoObj.Width, input_videoObj.Height, crop_dim(1), crop_dim(2), input_videoObj.Width-crop_dim(1), input_videoObj.Height-crop_dim(2));
+    topleft_coord = input(prompt);
+    if isempty(topleft_coord)
+        topleft_coord = round(([input_videoObj.Width input_videoObj.Height]-crop_dim)/2);
+    else
+        while ~strcmp(topleft_coord,'center') && ~strcmp(topleft_coord,'top') && ~strcmp(topleft_coord,'bottom') && ~strcmp(topleft_coord,'left') && ~strcmp(topleft_coord,'right') && ~strcmp(topleft_coord,'topright') && ~strcmp(topleft_coord,'topleft') && ~strcmp(topleft_coord,'bottomright') && ~strcmp(topleft_coord,'bottomleft') && ~(isnumeric(topleft_coord) && numel(topleft_coord) == 2 && all(topleft_coord + crop_dim <= input_dim))
+            if isnumeric(topleft_coord) && any(topleft_coord + crop_dim > [input_videoObj.Width input_videoObj.Height])
+                topleft_coord = input(sprintf('Input top-left pixel index is too far right/down to accomodate desired cropped dimensions. Re-enter top-left pixel index (max [%i,%i]),\nor press enter to crop center of input video:\n', input_dim(1)-crop_dim(i,1), input_dim(2)-crop_dim(i,2)));
+            else
+                disp('Input not recognized./n')
+                topleft_coord = input(prompt);
             end
-            if isnumeric(topleft_coord)
-                elseif strcmpi(topleft_coord,'center')
-                    topleft_coord = round(([input_videoObj.Width input_videoObj.Height]-crop_dim)/2);
-                elseif strcmpi(topleft_coord,'top')
-                    topleft_coord = [round((input_videoObj.Width-crop_dim(1))/2) 1];
-                elseif strcmpi(topleft_coord,'bottom')
-                    topleft_coord = [round((input_videoObj.Width-crop_dim(1))/2) input_videoObj.Height-crop_dim(2)];
-                elseif strcmpi(topleft_coord,'left')
-                    topleft_coord = [1 round((input_videoObj.Height-crop_dim(2))/2)];
-                elseif strcmpi(topleft_coord,'right')
-                    topleft_coord = [input_videoObj.Width-crop_dim(1) round((input_videoObj.Height-crop_dim(2))/2)];
-                elseif strcmpi(topleft_coord,'topleft')
-                    topleft_coord = [1 1];
-                elseif strcmpi(topleft_coord,'topright')
-                    topleft_coord = [input_videoObj.Width-crop_dim(1) 1];
-                elseif strcmpi(topleft_coord,'bottomleft')
-                    topleft_coord = [1 input_videoObj.Height-crop_dim(2)];
-                elseif strcmpi(topleft_coord,'bottomright')
-                    topleft_coord = [input_videoObj.Width-crop_dim(1) input_videoObj.Height-crop_dim(2)];
-            end
+        end
+        if isnumeric(topleft_coord)
+            elseif strcmpi(topleft_coord,'center')
+                topleft_coord = round(([input_videoObj.Width input_videoObj.Height]-crop_dim)/2);
+            elseif strcmpi(topleft_coord,'top')
+                topleft_coord = [round((input_videoObj.Width-crop_dim(1))/2) 1];
+            elseif strcmpi(topleft_coord,'bottom')
+                topleft_coord = [round((input_videoObj.Width-crop_dim(1))/2) input_videoObj.Height-crop_dim(2)];
+            elseif strcmpi(topleft_coord,'left')
+                topleft_coord = [1 round((input_videoObj.Height-crop_dim(2))/2)];
+            elseif strcmpi(topleft_coord,'right')
+                topleft_coord = [input_videoObj.Width-crop_dim(1) round((input_videoObj.Height-crop_dim(2))/2)];
+            elseif strcmpi(topleft_coord,'topleft')
+                topleft_coord = [1 1];
+            elseif strcmpi(topleft_coord,'topright')
+                topleft_coord = [input_videoObj.Width-crop_dim(1) 1];
+            elseif strcmpi(topleft_coord,'bottomleft')
+                topleft_coord = [1 input_videoObj.Height-crop_dim(2)];
+            elseif strcmpi(topleft_coord,'bottomright')
+                topleft_coord = [input_videoObj.Width-crop_dim(1) input_videoObj.Height-crop_dim(2)];
         end
     end
 else
@@ -233,7 +232,7 @@ for i = input_timeframe(1):input_timeframe(2)
 end
 clearvars iscolor kernel frame frame_filter bkgdFlicker frame_downsample
 
-%% Recombine written frames into AVI files.
+%% Combine written frames into AVI video files.
 if isempty(output_dir)
     output_dir = input_videoObj.Path;
 end
