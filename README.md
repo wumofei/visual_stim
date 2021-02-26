@@ -8,11 +8,12 @@ Process video file to create and display visual stimulus.
    * [Table of Contents](#table-of-contents)
    * [Dependencies](#dependencies)
    * [Usage](#usage)
+      * [Example workflow](#example-workflow)
       * [Auxiliary functions](#auxiliary-functions)
    * [Bugs](#bugs)
    * [To-do](#to-do)
 
-<!-- Added by: mofei, at: Fri Feb 19 12:06:41 CST 2021 -->
+<!-- Added by: mofei, at: Fri Feb 26 11:47:30 CST 2021 -->
 
 <!--te-->
 
@@ -24,7 +25,19 @@ Process video file to create and display visual stimulus.
 
 # Usage
 
-Call `video2stim.m` on video file (currently tested with 8-bit grayscale `.avi` files only) to produce a downsampled checkerboard flicker file and a convolved edge detection file. Call `dispmovie.m` on the edge detection file to display directly. Call `dispmovie_movingbar.m` on the downsampled file to display a bright bar moving across background checkerboard flicker.
+Call `video2stim.m` on video file (currently tested with 8-bit grayscale `.avi` and 24-bit color `.mp4` files only) to produce a downsampled checkerboard flicker file and a convolved edge detection file. Call `dispmovie.m` on the edge detection file to display directly. Call `dispmovie_movingbar.m` on the downsampled file to display a bright bar moving across background checkerboard flicker.
+
+## Example workflow
+
+```
+>> cd visual_stim
+>> video2stim('myvideo.avi', 0.5, 16, [36 24]); % corresponds to 0.5 meter distance between camera and object, 16mm lens, and 36x24mm sensor size for standard full-frame 35mm cameras.
+...
+>> dispmovie('myvideo_crop_scale_filter.avi');
+...
+>> dispmovie_movingbar('myvideo_bkgdFlicker.avi');
+...
+```
 
 ## Auxiliary functions
 
