@@ -4,13 +4,17 @@ Display movie using Psychtoolbox.
 # Required arguments: 
 
 `input_video`: char or matrix. If char, interpret as video filename.
-Otherwise, interpret as 8-bit grayscale video matrix. Currently tested
-with 8-bit grayscale .avi files only.
+Otherwise, interpret as 8-bit grayscale video matrix. Input video
+constrained to grayscale by Wei lab OLED.
 
 # Optional arguments (enter as name-value pairs after required
 arguments):
 
-`video_fps`: scalar in frames per second. Default 60.
+`video_fps`: scalar in frames per second. Default 60. To present sped up
+or slowed down video, adjust `video_fps` accordingly. Keep in mind that
+Wei lab OLED usually operates at 60Hz refresh rate. Ideally `video_fps`
+would be equal to a multiple of 60, or vice versa, to ensure relatively
+accurate frame presentation timing.
 
 `screenNumber`: integer. Number corresponding to screen on which to
 display stimulus. Default finds largest screennumber among connected
@@ -37,13 +41,22 @@ clearvars varargin p v
 %% Import movie.
 % If video filename is given, read video file. Otherwise, use input video matrix.
 if ischar(input_video)
-    videoobj = VideoReader(input_video);
-    videomat = squeeze(read(videoobj));
+    videoObj = VideoReader(input_video);
+    if ~strcmp(videoObj.VideoFormat, 'Grayscale')
+        error('Input video must be grayscale.')
+    end
+    videomat = squeeze(read(videoObj));
     if isempty(video_fps)
-        video_fps = videoobj.Framerate;
+        video_fps = videoObj.Framerate;
     end
 else
     videomat = input_video;
+    if ndims(videomat)~=3
+        videomat = squeeze(videomat);
+    end
+    if ndims(videomat)~=3
+        error('Input video must be grayscale.')
+    end
     if isempty(video_fps)
         warning('Input video FPS not given. Assuming 60 FPS.');
         video_fps = 60;
@@ -78,12 +91,6 @@ try
     topPriorityLevel = MaxPriority(window);                                    % prepare CPU priority during stimulus presentation.
     Screen('BlendFunction', window, 'GL_SRC_ALPHA', 'GL_ONE_MINUS_SRC_ALPHA'); % standard configuration for blending.
     
-    % Wei lab OLED usually operates at a refresh rate of 60 Hz. If input
-    % video FPS is greater than 60, some frames will be skipped.
-    if screen_ifi > video_ifi
-        warning('Input video FPS exceeds screen refresh rate by %.2f%%. May result in inaccurate frame timing.', (video_fps - 1/screen_ifi) / video_fps * 100)
-    end
-    
     % By default, input video is centered on the OLED screen, whose
     % dimensions are 800x600 pixels. Please scale/crop input video
     % appropriately before calling this function.
@@ -103,20 +110,27 @@ try
     HideCursor(window);
     KbReleaseWait;
     Priority(topPriorityLevel);
-    vbl = Screen('Flip', window); % mark stim presentation start time.
+    
+    % Show first frame.
+    Screen('DrawTexture', window, frametex(1));
+    time0 = Screen('Flip', window); % mark stim presentation start time.
+    currentTime = time0; % write initial time to variable that updates during each while loop.
     
     % Display movie.
-    for i = 1:videodim(end)
-        Screen('DrawTexture', window, frametex(i));
+    while ~KbCheck && currentTime - time0 + screen_ifi <= videodim(end) * video_ifi
+        % Find index of video frame to display based on estimate of next screen
+        % update. Elapsed time since start of stimulus is given by
+        % currentTime-time0. Best estimate of time until next screen flip is
+        % screen_ifi. Frame to display is frame corresponding to midpoint of
+        % next screen interval, i.e. elapsed time + 1.5 * screen interval.
+        frame2display = floor((currentTime-time0+1.5*screen_ifi)/video_ifi)+1;
+        
+        Screen('DrawTexture', window, frametex(frame2display));
         
         % Flip to screen with option to ensure precise timing. Indicates all
         % drawing commands should be finished and ready to flip to screen by 0.7
         % of an interframe interval.
-        vbl = Screen('Flip', window, vbl + 0.7*video_ifi);
-        
-        if KbCheck
-            break
-        end
+        currentTime = Screen('Flip', window, currentTime + 0.7*video_ifi);
     end
     Screen('Close');
 

@@ -6,13 +6,17 @@ background with a circular mask.
 # Required arguments:
 
 `input_video`: char or matrix. If char, interpret as video filename.
-Otherwise, interpret as 8-bit grayscale video matrix. Currently tested
-with 8-bit grayscale .avi files only.
+Otherwise, interpret as 8-bit grayscale video matrix. Input video
+constrained to grayscale by Wei lab OLED.
 
 # Optional arguments (enter as name-value pairs after required
 arguments):
 
-`video_fps`: scalar in frames per second. Default 60.
+`video_fps`: scalar in frames per second. Default 60. To present sped up
+or slowed down video, adjust `video_fps` accordingly. Keep in mind that
+Wei lab OLED usually operates at 60Hz refresh rate. Ideally `video_fps`
+would be a multiple of 60, or vice versa, to ensure relatively accurate
+frame presentation timing.
 
 `screenNumber`: integer. Number corresponding to screen on which to
 display stimulus. Default finds largest screennumber among connected
@@ -126,12 +130,6 @@ try
     Screen('BlendFunction', window, 'GL_SRC_ALPHA', 'GL_ONE_MINUS_SRC_ALPHA'); % standard configuration for blending.
     clearvars windowRect
     
-    % Wei lab OLED usually operates at a refresh rate of 60 Hz. If input
-    % video FPS is greater than 60, some frames will be skipped.
-    if screen_ifi > video_ifi
-        warning('Input video FPS exceeds screen refresh rate by %.2f%%. May result in inaccurate frame timing.', (video_fps - 1/screen_ifi) / video_fps * 100)
-    end
-    
     % By default, input video is centered on the OLED screen, whose
     % dimensions are 800x600 pixels. Please scale/crop input video
     % appropriately before calling this function.
@@ -200,11 +198,19 @@ try
         
         % Start moving bar just outside circular mask.
         dist_center2bar_init = maskradius + bar_length/2; % distance from screen center to starting bar center.
-        dist_center2bar = dist_center2bar_init;           % write initial bar position to variable that updates during each while loop.
+        dist_center2bar = dist_center2bar_init; % write initial bar position to variable that updates during each while loop.
         
-        Beeper('high');                 % make sound at beginning of each stim presentation trial.
+        Beeper('high'); % make sound at beginning of each stim presentation trial.
+        
+        % Show initial frame.
+        bar_pos = [xcenter+dist_center2bar*direction_cos, ycenter-dist_center2bar*direction_sin]; % Find position of moving bar center.
+        barDestRect = CenterRectOnPoint(barDestRect, bar_pos(1), bar_pos(2)); % Place moving bar destination on calculated moving bar center position.
+        Screen('DrawTexture', window, frametex(1)); % Show first frame of input movie.
+        Screen('DrawTexture', window, bartex, [], barDestRect, -direction); % Draw moving bar.
+        Screen('DrawTexture', window, masktex); % Draw circular mask.
         time0 = Screen('Flip', window); % record stim presentation start time.
-        currentTime = time0;            % write initial time to variable that updates during each while loop.
+        currentTime = time0; % write initial time to variable that updates during each while loop.
+        dist_center2bar = dist_center2bar - bar_speed * screen_ifi; % Update bar distance from center of screen.
         
         % Stim presentation loop.
         % Break when keyboard pressed. End presentation when bar completely exits circular mask.
@@ -218,9 +224,11 @@ try
             % Find index of video frame to display based on estimate of next screen
             % update. Elapsed time since start of stimulus is given by
             % currentTime-time0. Best estimate of time until next screen flip is
-            % screen_ifi. If moving bar presentation is longer than length of input
-            % video, loop video.
-            frame2display = mod(round((currentTime-time0+screen_ifi)/video_ifi),videodim(end));
+            % screen_ifi. Frame to display is frame corresponding to midpoint of
+            % next screen interval, i.e. elapsed time + 1.5 * screen interval. If
+            % moving bar presentation is longer than length of input video, loop
+            % video using mod.
+            frame2display = mod(floor((currentTime-time0+1.5*screen_ifi)/video_ifi)+1,videodim(end));
             
             % Place moving bar destination on calculated moving bar center position.
             barDestRect = CenterRectOnPoint(barDestRect, bar_pos(1), bar_pos(2));
@@ -236,7 +244,7 @@ try
             % of an interframe interval. Step (3) of process mentioned above.
             currentTime = Screen('Flip', window, currentTime + 0.7*screen_ifi);
             
-            % Update bar position.
+            % Update bar distance from center of screen.
             dist_center2bar = dist_center2bar - bar_speed * screen_ifi;
         end
         
