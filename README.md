@@ -44,6 +44,8 @@ Call `video2stim.m` on video file (currently tested with 8-bit grayscale `.avi` 
 * `readmovie.m`: load video file into memory. Useful for repeated operations on small videos. Will exceed memory limits for large video.
 * `writemovie.m`: write video matrix from memory to disk.
 * `reverse_brightness.m`: flip brightness around mean intensity for a given video matrix.
+* `dispmovie_long.m`: show video without preloading entire video into memory. May result in more frame timing delays. Use if input video exceeds memory availability.
+* `dispmovie_movingbar_long.m`: show moving bar over background video without preloading entire video into memory.
 
 # Bugs
 
