@@ -51,11 +51,8 @@ Call `video2stim.m` on video file (currently tested with 8-bit grayscale `.avi` 
 
 * Psychtoolbox may throw a synchronization failure error when calling `dispmovie.m` or `dispmovie_movingbar.m`. As far as I can tell, this is a hardware problem and not much can be done by changing code. Try rerunning a few times, or using better graphics hardware. You may skip Psychtoolbox synchronization tests by setting `Screen('Preference','SkipSyncTests',1)`, but this may result in inaccurate stimulus presentation.
 
-* May run into memory problems on large video files.
-
 # To-do
 
-* Reduce memory usage.
 * Integrate mean intensity and contrast adjustments in `video_linstretch.m` into display functions.
 * Research edge detection kernels.
 * Add recording triggers.
