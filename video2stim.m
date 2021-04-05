@@ -66,7 +66,7 @@ function video2stim(input_filename, input_dist, input_focal_length, input_sensor
 p = inputParser;
 v = @validateattributes;
 
-addRequired( p,'input_filename',                    @(x) v(x,{'char'},{'nonempty'},mfilename,'input_filename',1));
+addRequired( p,'input_filename',                    @(x) v(x,{'char','string'},{'nonempty'},mfilename,'input_filename',1));
 addRequired( p,'input_dist',                        @(x) v(x,{'numeric'},{'scalar','positive'},mfilename,'input_dist',2));           % distance from camera lens to objects in scene (meters).
 addRequired( p,'input_focal_length',                @(x) v(x,{'numeric'},{'scalar','positive'},mfilename,'input_focal_length',3));   % camera focal length (millimeters).
 addRequired( p,'input_sensor_size',                 @(x) v(x,{'numeric'},{'numel',2,'positive'},mfilename,'input_sensor_size',4));   % camera sensor size (millimeters).
