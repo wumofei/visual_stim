@@ -53,7 +53,7 @@ Call `video2stim.m` on video file (currently tested with 8-bit grayscale `.avi` 
 
 # To-do
 
-* Integrate mean intensity and contrast adjustments in `video_linstretch.m` into display functions.
+* Fix `video_linstretch.m`.
 * Research edge detection kernels.
 * Add recording triggers.
 * Add gamma table lookup?
