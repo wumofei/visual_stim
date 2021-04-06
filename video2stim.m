@@ -158,7 +158,7 @@ elseif any(crop_dim < [input_videoObj.Width input_videoObj.Height])
     if isempty(topleft_coord)
         topleft_coord = round(([input_videoObj.Width input_videoObj.Height]-crop_dim)/2);
     else
-        while ~strcmp(topleft_coord,'center') && ~strcmp(topleft_coord,'top') && ~strcmp(topleft_coord,'bottom') && ~strcmp(topleft_coord,'left') && ~strcmp(topleft_coord,'right') && ~strcmp(topleft_coord,'topright') && ~strcmp(topleft_coord,'topleft') && ~strcmp(topleft_coord,'bottomright') && ~strcmp(topleft_coord,'bottomleft') && ~(isnumeric(topleft_coord) && numel(topleft_coord) == 2 && all(topleft_coord + crop_dim <= input_dim))
+        while ~strcmp(topleft_coord,'center') && ~strcmp(topleft_coord,'top') && ~strcmp(topleft_coord,'bottom') && ~strcmp(topleft_coord,'left') && ~strcmp(topleft_coord,'right') && ~strcmp(topleft_coord,'topright') && ~strcmp(topleft_coord,'topleft') && ~strcmp(topleft_coord,'bottomright') && ~strcmp(topleft_coord,'bottomleft') && ~(isnumeric(topleft_coord) && numel(topleft_coord) == 2 && all(topleft_coord + crop_dim <= [input_videoObj.Height, input_videoObj.Width]))
             if isnumeric(topleft_coord) && any(topleft_coord + crop_dim > [input_videoObj.Width input_videoObj.Height])
                 topleft_coord = input(sprintf('Input top-left pixel index is too far right/down to accomodate desired cropped dimensions. Re-enter top-left pixel index (max [%i,%i]),\nor press enter to crop center of input video:\n', input_dim(1)-crop_dim(i,1), input_dim(2)-crop_dim(i,2)));
             else
