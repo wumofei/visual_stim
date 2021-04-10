@@ -207,13 +207,13 @@ else
 
     % Check if desired crop dimensions are larger than input video dimensions.
     if any(crop_dim > [input_videoObj.Width input_videoObj.Height])
-        error(['Input video is not sufficiently large to accomodate the desired output viewing distance(s): ', sprintf('%.2f ', output_viewing_distance*10^2), 'cm.']);
+        error('Landscape depicted in input video is not sufficiently large to accomodate the desired output landscape size determined by `output_retina_size`, `output_viewing_dist`, and `visualAngle2retinaDist`.');
     % If input video dimensions are larger than the desired cropped dimensions, query user for area to crop.
     elseif any(crop_dim < [input_videoObj.Width input_videoObj.Height])
-        fprintf('Input video dimensions are larger than the desired cropped dimensions. \nInput video is %ix%i pixels, whereas the desired crop area is %ix%i pixels. \nChoose area to crop by dragging rectangle on pop-up window. Double-click rectangle when finished.\n', input_videoObj.Width, input_videoObj.Height, crop_dim(1), crop_dim(2));
+        fprintf('Input video dimensions are larger than the desired cropped dimensions. \nInput video is %ix%i pixels, whereas the desired crop area is %ix%i pixels. \nChoose area to crop by dragging rectangle on pop-up window. Double-click rectangle when finished. \nNote that if the area of the rectangle is changed, area to crop may not correspond to requested input viewing distance or retina size. \nIf the aspect ratio of the rectangle is changed, video will be distorted during processing./n', input_videoObj.Width, input_videoObj.Height, crop_dim(1), crop_dim(2));
         testframe = squeeze(read(input_videoObj,1));
         f = figure; imshow(testframe);
-        r = drawrectangle('position',[0 0 crop_dim(1) crop_dim(2)],'InteractionsAllowed','translate','Deletable',false);
+        r = drawrectangle('position',[0 0 crop_dim(1) crop_dim(2)],'Deletable',false);
         wait(r);
         cropRect = r.Position;
         cropRect(1:2) = round(cropRect(1:2));
@@ -230,6 +230,7 @@ else
     else
         isCrop = 0;
     end
+    clearvars crop_dim
 end
 clearvars output_retina_size angle2retina_dist input_focal_length input_dist input_pixel_size
 
