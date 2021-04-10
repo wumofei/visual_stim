@@ -8,8 +8,8 @@ Process video file to create and display visual stimulus.
    * [Table of Contents](#table-of-contents)
    * [Dependencies](#dependencies)
    * [Usage](#usage)
-      * [Example workflow](#example-workflow)
-      * [Auxiliary functions](#auxiliary-functions)
+       * [Example workflow](#example-workflow)
+       * [Auxiliary functions](#auxiliary-functions)
    * [Bugs](#bugs)
    * [To-do](#to-do)
 
@@ -19,7 +19,8 @@ Process video file to create and display visual stimulus.
 
 # Dependencies
 
-* Tested on MATLAB R2019a and R2020b. Image Processing Toolbox add-on is required for MATLAB R2020b.
+* Tested on MATLAB R2019a and R2020b.
+    * Image Processing Toolbox add-on is required for MATLAB R2020b.
 * Psychophysics Toolbox 3.0.17.
 * Performance varies with graphics hardware.
 
@@ -31,7 +32,8 @@ Call `video2stim.m` on video file (currently tested with 8-bit grayscale `.avi` 
 
 ```
 >> cd visual_stim
->> video2stim('myvideo.avi', 0.5, 16, [36 24]); % corresponds to 0.5 meter distance between camera and object, 16mm lens, and 36x24mm sensor size for standard full-frame 35mm cameras.
+>> video2stim('myvideo.avi', 'input_dist', 0.5, 'input_focal_length', 16, 'input_sensor_size', [36 24]);
+% corresponds to 0.5 meter distance between camera and object, 16mm lens, and 36x24mm sensor size for standard full-frame 35mm cameras.
 ...
 >> dispmovie('myvideo_crop_scale_filter.avi');
 ...
