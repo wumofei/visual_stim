@@ -30,7 +30,7 @@ function dispmovie_long(input_video, varargin)
 p = inputParser;
 v = @validateattributes;
 
-addRequired( p, 'input_video',      @(x) v(x,{'char'},{'nonempty'},mfilename,'input_video'));                           % filename.
+addRequired( p, 'input_video',      @(x) v(x,{'char','string'},{'nonempty'},mfilename,'input_video'));                           % filename.
 addParameter(p, 'video_fps',    [], @(x) v(x,{'numeric'},{'scalar','nonnegative'},mfilename,'video_fps'));              % default 60 fps.
 addParameter(p, 'screenNumber', [], @(x) v(x,{'numeric'},{'scalar','integer','nonnegative'},mfilename,'screenNumber')); % default find external screen with greatest port number.
 

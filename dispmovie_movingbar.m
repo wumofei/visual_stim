@@ -54,7 +54,7 @@ function dispmovie_movingbar(input_video, varargin)
 p = inputParser;
 v = @validateattributes;
 
-addRequired( p, 'input_video',             @(x) v(x,{'char','numeric'},{'nonempty'},mfilename,'input_video'));                 % filename or matrix.
+addRequired( p, 'input_video',             @(x) v(x,{'char','string','numeric'},{'nonempty'},mfilename,'input_video'));                 % filename or matrix.
 addParameter(p, 'video_fps',           [], @(x) v(x,{'numeric'},{'scalar','nonnegative'},mfilename,'video_fps'));              % default 60 fps.
 addParameter(p, 'screenNumber',        [], @(x) v(x,{'numeric'},{'scalar','integer','nonnegative'},mfilename,'screenNumber')); % default find external screen with greatest port number.
 addParameter(p, 'nReps',                1, @(x) v(x,{'numeric'},{'scalar','positive','integer'},mfilename,'nReps'));           % repetitions of stimulus to show.
