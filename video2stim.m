@@ -12,7 +12,7 @@ Specify `input_dist`, `input_focal_length`, and either
 `input_sensor_size` or `input_pixel_size`. Along with
 `visualAngle2retinaDist`, `output_retina_size` and
 `output_viewing_dist`, pixel dimensions of input video that match
-requested optimal viewing distance are calculated in lines 208-215. A
+requested optimal viewing distance are calculated in lines 219-226. A
 pop-up window displaying the first frame of the input video, overlaid
 with a rectangular indicator with the calculated crop pixel dimensions,
 will appear. Move rectangular indicator to select desired region to
