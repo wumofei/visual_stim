@@ -1,9 +1,39 @@
+%{
+Linearly offset and scale input video to obtain desired changes in
+mean luminance and contrast.
+
+# Required arguments:
+
+`input_video`: char or matrix. If char, interpret as video filename.
+Otherwise, interpret as 8-bit grayscale video matrix.
+
+`dMean`: nonnegative scalar. For example, if `dMean = 1.5`, adjust video
+to obtain 150% of original mean intensity.
+
+`dContrast`: nonnegative scalar. For example, if `dContrast = 0.75`,
+adjust video to obtain 75% of original contrast.
+
+# Output:
+
+If `input_video` is a char or string, output video is written to a new
+.avi file in the same directory as `input_video`. If `input_video` is a
+matrix, output video is given as a workspace variable.
+
+# Bugs:
+
+Division by zero when desired new contrast equals 1 on lines 69 and 98.
+Need to fix algorithm for determining new pixel value limits. Consider
+looking through inbuilt MATLAB functions `imadjust.m` and
+`stretchlim.m`.
+
+%}
+
 function output_video = video_linstretch(input_video, dMean, dContrast)
 
 % Check inputs.
 if nargin < 3
     error('3 inputs required: input video, desired change in mean intensity, and desired change in contrast.')
-elseif ~ischar(input_video) && ~ismatrix(input_video)
+elseif ~ischar(input_video) && ~isstring(input_video) && ~ismatrix(input_video)
     error('Input video must be given as filename or matrix.')
 elseif ~isscalar(dMean) || dMean <= 0
     error('Desired change in mean intensity must be given as a positive scalar.')
@@ -36,7 +66,7 @@ if ischar(input_video)
     newMean = oldMean * dMean;
     newContrast = oldContrast * dContrast;
     % Find new range to match desired change in mean intensity and contrast.
-    newMin = newMean / oldMean_norm / ((1 + newContrast) / (1 - newContrast) + 1/(oldMean_norm) - 1);
+    newMin = newMean / oldMean_norm / ((1 + newContrast) / (1 - newContrast) + 1/(oldMean_norm) - 1); % needs fixing. Currently cannot accommodate case where `newContrast = 1`.
     newMax = newMin * (1 + newContrast) / (1 - newContrast);
     % Linearly stretch frames to desired range.
     [~,filename] = fileparts(videoObj.Name);
@@ -65,7 +95,7 @@ else
     % Determine new range to match desired change in mean and contrast.
     newMean = oldMean * dMean;
     newContrast = oldContrast * dContrast;
-    newMin = newMean / oldMean_norm / ((1 + newContrast) / (1 - newContrast) + 1/(oldMean_norm) - 1);
+    newMin = newMean / oldMean_norm / ((1 + newContrast) / (1 - newContrast) + 1/(oldMean_norm) - 1); % needs fixing. Currently cannot accommodate case where `newContrast = 1`.
     newMax = newMin * (1 + newContrast) / (1 - newContrast);
     % Linearly stretch video to desired range.
     output_video = (input_video - oldMin) / (oldMax - oldMin) * (newMax - newMin) + newMin;

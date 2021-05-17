@@ -3,7 +3,28 @@ Convert input video to Wei lab rig OLED display stimulus. Match size of
 depicted scene to size of target retina and optimal viewing distance.
 Convolve with 3x3 kernel to detect edges. Scale video size to match OLED
 size: 800x600 pixels. Downsample to match bipolar cell RF diamater to
-produce background flicker.
+produce background checkerboard flicker.
+
+Two ways of selecting region of input video to crop are supported:
+
+1.
+Specify `input_dist`, `input_focal_length`, and either
+`input_sensor_size` or `input_pixel_size`. Along with
+`visualAngle2retinaDist`, `output_retina_size` and
+`output_viewing_dist`, pixel dimensions of input video that match
+requested optimal viewing distance are calculated in lines 208-215. A
+pop-up window displaying the first frame of the input video, overlaid
+with a rectangular indicator with the calculated crop pixel dimensions,
+will appear. Move rectangular indicator to select desired region to
+crop. Double-click to finish. You may change the size of the rectangular
+indicator, but keep in mind that you might want to keep the aspect ratio
+constant, lest the input video be distorted.
+
+2.
+Directly specify a rectangular region in pixels to crop using
+`cropRect`. Keep in mind that the Wei lab OLED is 800x600 pixels, so the
+rectangle specified should maintain an aspect ratio of 4x3, lest the
+input video be distorted.
 
 # Required arguments:
 
@@ -74,7 +95,7 @@ function video2stim(input_filename, varargin)
 p = inputParser;
 v = @validateattributes;
 
-addRequired( p,'input_filename',                    @(x) v(x,{'char','string'},{'nonempty'},mfilename,'input_filename',1));
+addRequired( p,'input_filename',                    @(x) v(x,{'char','string'},{'nonempty'},mfilename,'input_filename',1));          % path to video file to process.
 addParameter(p,'input_dist',                    [], @(x) v(x,{'numeric'},{'scalar','positive'},mfilename,'input_dist'));             % distance from camera lens to objects in scene (meters).
 addParameter(p,'input_focal_length',            [], @(x) v(x,{'numeric'},{'scalar','positive'},mfilename,'input_focal_length'));     % camera focal length (millimeters).
 addParameter(p,'input_sensor_size',             [], @(x) v(x,{'numeric'},{'numel',2,'positive'},mfilename,'input_sensor_size'));     % camera sensor size (millimeters).
@@ -98,7 +119,7 @@ input_sensor_size = p.Results.input_sensor_size;
 input_pixel_size = p.Results.input_pixel_size;
 cropRect = p.Results.cropRect;
 output_retina_size = p.Results.output_retina_size;
-output_viewing_distance = p.Results.output_viewing_dist;
+output_viewing_dist = p.Results.output_viewing_dist;
 output_dim = p.Results.output_dim;
 output_resolution = p.Results.output_resolution;
 visualAngle2retinaDist = p.Results.visualAngle2retinaDist;
@@ -134,7 +155,7 @@ input_focal_length = input_focal_length * 10^-3;
 input_sensor_size = input_sensor_size * 10^-3;
 input_pixel_size = input_pixel_size * 10^-6;
 output_retina_size = output_retina_size * 10^-6;
-output_viewing_distance = output_viewing_distance * 10^-2;
+output_viewing_dist = output_viewing_dist * 10^-2;
 visualAngle2retinaDist = visualAngle2retinaDist * 10^-6;
 
 %% Prepare input video.
@@ -170,9 +191,9 @@ elseif ~isempty(cropRect)
     else
         % Check whether `cropRect` follows [topleft_x topleft_y botright_x botright_y].
         if cropRect(1) > cropRect(3) && cropRect(2) > cropRect(4)
-            temp = cropRect(1:2);
+            tmp = cropRect(1:2);
             cropRect(1:2) = cropRect(3:4);
-            cropRect(3:4) = temp;
+            cropRect(3:4) = tmp;
             clearvars temp
         elseif cropRect(1) < cropRect(3) && cropRect(2) > cropRect(4)
             cropRect = [cropRect(1) cropRect(4) cropRect(3) cropRect(2)];
@@ -185,18 +206,18 @@ else
         error('Both `input_dist` and `input_focal_length`, as well as either `input_sensor_size` or `input_pixel_size`, is required to calculate area to crop using camera specifications.')
     elseif ~isempty(input_sensor_size) && ~isempty(input_pixel_size)
         if any([input_videoObj.Width input_videoObj.Height] * input_pixel_size ~= input_sensor_size)
-            warning('Both `input_sensor_size` and `input_pixel_size` are given, but input video dimensions multiplied by `input_pixel_size` does not equal `input_sensor_size`. Using `input_pixel_size` to calculate area to crop.')
+            warning('Both `input_sensor_size` and `input_pixel_size` are given, but input video dimensions multiplied by `input_pixel_size` do not equal `input_sensor_size`. Using `input_pixel_size` to calculate area to crop.')
         end
     elseif isempty(input_pixel_size)
         input_pixel_size = input_sensor_size ./ [input_videoObj.Width input_videoObj.Height];
     end
-    if isempty(output_retina_size) || isempty(visualAngle2retinaDist) || isempty(output_viewing_distance)
-        error('`output_retina_size`, `visualAngle2retinaDist`, and `output_viewing_distance` are required to calculate area to crop based on camera specifications.')
+    if isempty(output_retina_size) || isempty(visualAngle2retinaDist) || isempty(output_viewing_dist)
+        error('`output_retina_size`, `visualAngle2retinaDist`, and `output_viewing_dist` are required to calculate area to crop based on camera specifications, target retina, and optimal viewing distance.')
     end
     clearvars input_sensor_size    
     
     % Find desired size of imagery depicted in output video.
-    output_landscape_size = output_retina_size / visualAngle2retinaDist * pi/180 * output_viewing_distance; % x,y
+    output_landscape_size = output_retina_size / visualAngle2retinaDist * pi/180 * output_viewing_dist; % x,y
 
     % Approximate size of imagery depicted in input video using pinhole model.
     input_landscape_per_pixel = input_pixel_size / input_focal_length * input_dist; % x,y
@@ -212,10 +233,13 @@ else
     elseif any(crop_dim < [input_videoObj.Width input_videoObj.Height])
         fprintf('Input video dimensions are larger than the desired cropped dimensions. \nInput video is %ix%i pixels, whereas the desired crop area is %ix%i pixels. \nChoose area to crop by dragging rectangle on pop-up window. Double-click rectangle when finished. \nNote that if the area of the rectangle is changed, area to crop may not correspond to requested input viewing distance or retina size. \nIf the aspect ratio of the rectangle is changed, video will be distorted during processing./n', input_videoObj.Width, input_videoObj.Height, crop_dim(1), crop_dim(2));
         testframe = squeeze(read(input_videoObj,1));
-        f = figure; imshow(testframe);
-        r = drawrectangle('position',[0 0 crop_dim(1) crop_dim(2)],'Deletable',false);
-        wait(r);
+        f = figure; imshow(testframe);                                                 % display first frame of input video.
+        r = drawrectangle('position',[0 0 crop_dim(1) crop_dim(2)],'Deletable',false); % overlay adjustable rectangle with dimensions of desired crop.
+        wait(r);                                                                       % wait for user to double-click rectangle after dragging rectangle to select area to crop.
+        close(f);
         cropRect = r.Position;
+        clearvars r f testframe
+        % Check that `cropRect` does not exceed video dimensions.
         cropRect(1:2) = round(cropRect(1:2));
         cropRect(1) = max(1,cropRect(1)); cropRect(2) = max(1,cropRect(2));
         if cropRect(1) + cropRect(3) > input_videoObj.Width
@@ -225,14 +249,12 @@ else
             cropRect(2) = cropRect(2) - 1;
         end
         cropRect(3:4) = cropRect(1:2) + cropRect(3:4);
-        close(f);
-        clearvars r f testframe
     else
         isCrop = 0;
     end
     clearvars crop_dim
 end
-clearvars output_retina_size angle2retina_dist input_focal_length input_dist input_pixel_size
+clearvars output_retina_size visualAngle2retinaDist input_focal_length input_dist input_pixel_size output_viewing_dist
 
 %% Make directories to store processed video frames.
 [~, filename] = fileparts(input_videoObj.Name);
